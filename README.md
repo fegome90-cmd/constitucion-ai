@@ -47,26 +47,15 @@ Esta constitución resuelve eso con **leyes vinculantes**, no sugerencias.
 
 ## Instalación
 
-### Requisitos
-
-- Python >= 3.12
-- uv (recomendado) o pip
-
-### Setup
+Este repositorio contiene exclusivamente documentación Markdown — no requiere instalación de dependencias.
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/felipe/constitucion-ai.git
+git clone https://github.com/fegome90-cmd/constitucion-ai.git
 cd constitucion-ai
-
-# Crear entorno virtual
-uv venv
-source .venv/bin/activate  # Linux/Mac
-# o: .venv\Scripts\activate  # Windows
-
-# Instalar dependencias de desarrollo
-uv pip install -e ".[dev]"
 ```
+
+Con eso ya tienes acceso a `constitution/AGENTIC-CONSTITUTION.md` y el resto de los documentos.
 
 ## Uso Rápido
 
@@ -77,7 +66,7 @@ En el `CLAUDE.md` de tu proyecto:
 ```markdown
 ## Gobernanza
 
-Este proyecto opera bajo la [Constitución de Código Agéntico](https://github.com/felipe/constitucion-ai).
+Este proyecto opera bajo la [Constitución de Código Agéntico](https://github.com/fegome90-cmd/constitucion-ai).
 
 Consultar `constitution/AGENTIC-CONSTITUTION.md` para leyes completas.
 ```
@@ -94,47 +83,21 @@ constitucion-ai/
 │   ├── AGENTIC-CONSTITUTION.md    # Constitución activa (v1.1)
 │   └── REVIEW-CHECKLIST.md        # Checklist de revisión
 ├── docs/
-│   ├── mandate-roles-and-jurisdiction.md
-│   └── reviewctl-agent-guide.md
+│   └── mandate-roles-and-jurisdiction.md
 ├── archive/
-│   ├── v1.0-AGENTIC-CONSTITUTION.md  # Versiones anteriores
-│   └── v0.7-AGENTIC-CONSTITUTION.md
-├── scripts/
-│   └── reviewctl/                 # Utilidades de revisión
-│       └── lint_markdownlint_changed.sh
-├── .reviewctl/
-│   └── project-gates.json         # Configuración de gates
+│   └── v0.7-AGENTIC-CONSTITUTION.md  # Versión archivada
 ├── CLAUDE.md                      # Contexto para Claude Code
-├── pyproject.toml                 # Configuración del proyecto
 └── README.md                      # Este archivo
 ```
 
 ## Desarrollo
 
-### Linting y Formato
+### Linting de Documentación
 
 ```bash
-# Ejecutar todos los linters
-./scripts/lint-all.sh
-
-# O individualmente
-ruff check .
-ruff format .
-mypy .
-bandit -r .
-codespell
+# Lint de archivos Markdown
 markdownlint-cli2 "**/*.md"
 ```
-
-
-
-
-
-
-
-
-
-
 
 ## Filosofía
 
