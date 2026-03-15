@@ -51,3 +51,9 @@ _ctx/
 
 # Review summaries output
 docs/reviews/
+
+# Claude Code local config
+.claude/
+
+# Temporary exploration workspace
+explore/
