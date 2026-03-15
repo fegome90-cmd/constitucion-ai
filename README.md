@@ -1,5 +1,9 @@
 # Constitución de Código Agéntico
 
+[![Version](https://img.shields.io/badge/version-v1.1-blue.svg)](./constitution/AGENTIC-CONSTITUTION.md)
+
+
+
 > Marco fundacional para gobernanza de sistemas de IA en desarrollo de software.
 
 ## ¿Qué es esto?
@@ -23,49 +27,76 @@ Los agentes de IA son poderosos pero impredecibles. Sin reglas claras:
 
 Esta constitución resuelve eso con **leyes vinculantes**, no sugerencias.
 
-## Las 7 Leyes
+## Las 13 Leyes
 
 | Ley | Nombre | Propósito |
 |-----|--------|-----------|
-| I | Cambio Legítimo | Toda mutación requiere intención explícita, planificación proporcional, evidencia |
-| II | Lectura Previa | Leer antes de escribir. No duplicar. |
-| III | Control de Agentes | Subprocesos y agentes requieren supervisión |
-| IV | Validación y Revisión | Todo cambio debe ser verificable |
-| V | Gobernanza | Zonas de riesgo, permisos, excepciones |
-| VI | Gestión de Estado | Coherencia entre sesiones |
-| VII | Comunicación | Trazabilidad y documentación |
+| **I** | Cambio Legítimo | Toda mutación requiere intención explícita, planificación proporcional, evidencia |
+| **II** | Lectura Previa | Leer antes de escribir. No duplicar. |
+| **III** | Arquitectura Base | Scope, jerarquía, responsabilidades |
+| **IV** | Control de Versiones | Aislamiento, promoción de cambios |
+| **V** | Verificabilidad | Tests, typecheck, lint, calidad automatizada |
+| **VI** | Fuente de Verdad | Reconciliación, consistencia |
+| **VII** | Primacía del Sistema | Neutralidad de modelo |
+| **VIII** | Seguridad Agéntica | Protección, permisos |
+| **IX** | Persistencia | Base de datos, estado |
+| **X** | Interfaces | Contratos, compatibilidad |
+| **XI** | Observabilidad | Auditoría, logs, métricas |
+| **XII** | Roles | Capacidades, jurisdicción |
+| **XIII** | Primacía Conceptual | Interacción semántica |
+
+## Instalación
+
+Este repositorio contiene exclusivamente documentación Markdown — no requiere instalación de dependencias.
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/fegome90-cmd/constitucion-ai.git
+cd constitucion-ai
+```
+
+Con eso ya tienes acceso a `constitution/AGENTIC-CONSTITUTION.md` y el resto de los documentos.
 
 ## Uso Rápido
 
-### Opción 1: Referenciar
+### Opción 1: Referenciar desde tu proyecto
 
 En el `CLAUDE.md` de tu proyecto:
 
 ```markdown
 ## Gobernanza
 
-Este proyecto opera bajo la [Constitución de Código Agéntico](https://github.com/felipe/constitucion-ai).
+Este proyecto opera bajo la [Constitución de Código Agéntico](https://github.com/fegome90-cmd/constitucion-ai).
 
 Consultar `constitution/AGENTIC-CONSTITUTION.md` para leyes completas.
 ```
 
-### Opción 2: Incluir
+### Opción 2: Incluir directamente
 
-Copiar `constitution/AGENTIC-CONSTITUTION.md` directamente a tu proyecto.
+Copiar `constitution/AGENTIC-CONSTITUTION.md` a tu proyecto.
 
-## Estructura del Repo
+## Estructura del Proyecto
 
 ```
 constitucion-ai/
 ├── constitution/
-│   ├── AGENTIC-CONSTITUTION.md    # Constitución activa (v1.0)
+│   ├── AGENTIC-CONSTITUTION.md    # Constitución activa (v1.1)
 │   └── REVIEW-CHECKLIST.md        # Checklist de revisión
-├── archive/
-│   └── v0.7-AGENTIC-CONSTITUTION.md  # Versiones anteriores
 ├── docs/
 │   └── mandate-roles-and-jurisdiction.md
+├── archive/
+│   └── v0.7-AGENTIC-CONSTITUTION.md  # Versión archivada
 ├── CLAUDE.md                      # Contexto para Claude Code
 └── README.md                      # Este archivo
+```
+
+## Desarrollo
+
+### Linting de Documentación
+
+```bash
+# Lint de archivos Markdown
+markdownlint-cli2 "**/*.md"
 ```
 
 ## Filosofía
@@ -82,17 +113,21 @@ No es burocracia por burocracia. Es estructura mínima necesaria para trabajar c
 
 ## Versionado
 
-| Versión | Archivo | Estado |
-|---------|---------|--------|
-| v1.0 | `constitution/AGENTIC-CONSTITUTION.md` | Activa |
-| v0.7 | `archive/v0.7-AGENTIC-CONSTITUTION.md` | Archivada |
+| Versión | Archivo | Estado | Descripción |
+|---------|---------|--------|-------------|
+| v1.1 | [`constitution/AGENTIC-CONSTITUTION.md`](./constitution/AGENTIC-CONSTITUTION.md) | ✅ Activa | Estructura mejorada, 13 leyes, Anexo III |
+| v0.7 | [`archive/v0.7-AGENTIC-CONSTITUTION.md`](./archive/v0.7-AGENTIC-CONSTITUTION.md) | 📁 Archivada | Versión inicial |
 
 ## Contribuir
 
-1. Abrir issue con propuesta de enmienda
-2. Discutir impacto y justificación
-3. PR con cambios documentados
-4. Revisión según proceso constitucional
+Las contribuciones son bienvenidas. Para proponer cambios:
+
+1. **Abrir issue** con propuesta de enmienda
+2. **Discutir** impacto y justificación con la comunidad
+3. **Crear PR** con cambios documentados siguiendo el proceso de enmienda del Anexo III
+4. **Revisión** según proceso constitucional definido
+
+Ver [`constitution/REVIEW-CHECKLIST.md`](./constitution/REVIEW-CHECKLIST.md) para el proceso de revisión.
 
 ## Licencia
 
@@ -100,4 +135,6 @@ MIT - Usa, modifica, comparte libremente.
 
 ---
 
-*"Sin reglas claras, los agentes son herramientas peligrosas. Con ellas, son multiplicadores de capacidad."*
+<p align="center">
+  <em>"Sin reglas claras, los agentes son herramientas peligrosas. Con ellas, son multiplicadores de capacidad."</em>
+</p>

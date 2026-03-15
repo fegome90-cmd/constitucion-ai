@@ -96,8 +96,6 @@ Para usar esta constitución en un proyecto:
 
 Esta constitución es un documento vivo. Proponer cambios vía issues o PRs siguiendo el proceso de enmienda definido en **Anexo III** (`constitution/AGENTIC-CONSTITUTION.md`).
 
-El proceso define tres tipos de enmienda (parche, menor, mayor) con criterios de deliberación, aprobación y versionado proporcionales al impacto.
-
 ## Licencia
 
 MIT
