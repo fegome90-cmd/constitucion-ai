@@ -45,3 +45,9 @@ ENV/
 
 # Git worktrees
 .worktrees/
+
+# reviewctl artifacts
+_ctx/
+
+# Review summaries output
+docs/reviews/

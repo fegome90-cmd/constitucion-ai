@@ -1,0 +1,42 @@
+{
+  "project": "constitucion-ai",
+  "description": "Constitución de Código Agéntico — repo Markdown puro",
+  "stack": "general",
+
+  "frontend": {
+    "enabled": false
+  },
+
+  "statics": {
+    "biome_mode": "disabled",
+    "ruff_mode": "disabled",
+    "pytest_mode": "disabled",
+    "markdownlint_mode": "changed-files"
+  },
+
+  "custom_statics": [
+    {
+      "name": "markdownlint",
+      "enabled": true,
+      "blocking": true,
+      "command": "bash scripts/reviewctl/lint_markdownlint_changed.sh",
+      "output_file": "/tmp/markdownlint-output.md",
+      "ingest_as": "markdownlint"
+    }
+  ],
+
+  "agents": {
+    "max": 3,
+    "timeout_mins": 8,
+    "required": [
+      "code-reviewer"
+    ]
+  },
+
+  "output_dir": "docs/reviews",
+
+  "debt_log": {
+    "enabled": true,
+    "path": "docs/reviews/lint-debt-backlog.md"
+  }
+}
