@@ -22,12 +22,14 @@
 **Propósito:** Base interpretativa y definiciones vinculantes
 
 ### Preámbulo
+
 - [x] Propósito declarado: proteger trazabilidad, calidad, reversibilidad
 - [x] Coherencia arquitectónica verificada
 - [x] Verificabilidad del trabajo establecida
 - [x] Continuidad del sistema priorizada
 
 ### Definiciones Fundamentales (Artículos 1-7)
+
 - [x] **Art. 1 - Mutación:** definida como acción que crea/modifica/elimina artefactos
 - [x] **Art. 2 - Tarea:** unidad con objetivo explícito y resultado esperable
 - [x] **Art. 3 - Validación:** mecanismo verificable de cumplimiento
@@ -43,6 +45,7 @@
 **Propósito:** Regular cuándo una mutación es válida
 
 ### Artículos (6)
+
 - [x] **Art. 1:** Intención explícita antes de mutar
 - [x] **Art. 2:** Planificación proporcional al riesgo
 - [x] **Art. 3:** Validación previa definida
@@ -51,12 +54,14 @@
 - [x] **Art. 6:** Coherencia plan-ejecución-revisión
 
 ### Incisos Operativos
+
 - [x] Cambio pequeño = plan breve
 - [x] Cambio sistémico = validación fuerte
 - [x] No aceptar "debería funcionar"
 - [x] Desviaciones deben constar explícitamente
 
 ### Casos de Aplicación
+
 - [x] Microfix local: intención + validación mínima
 - [x] Cambio de contrato: plan + pruebas + evidencia
 - [x] Modificación arquitectónica: análisis + justificación
@@ -68,6 +73,7 @@
 **Propósito:** Impedir reescritura ciega y duplicación
 
 ### Artículos (5)
+
 - [x] **Art. 1:** Lectura previa obligatoria
 - [x] **Art. 2:** Prioridad de reutilización
 - [x] **Art. 3:** Creación justificada
@@ -75,6 +81,7 @@
 - [x] **Art. 5:** Ausencia explícita declarada
 
 ### Incisos Operativos
+
 - [x] No crear archivo sin revisar vecinos
 - [x] No reescribir documentación viva sin revisar
 - [x] No abrir nueva fuente de verdad si existe una
@@ -86,6 +93,7 @@
 **Propósito:** Establecer doctrina arquitectónica consistente
 
 ### Artículos (7)
+
 - [x] **Art. 1:** Arquitectura por defecto adoptada
 - [x] **Art. 2:** Disciplina antes que moda
 - [x] **Art. 3:** Prohibición de sobreingeniería ornamental
@@ -95,6 +103,7 @@
 - [x] **Art. 7:** Regla de Scope ✨ NUEVO (2026-03-14)
 
 ### Art. 7 - Regla de Scope (Añadido)
+
 - [x] **Inciso 7.1:** 2+ features → directorios compartidos (`shared/`, `common/`, `core/`)
 - [x] **Inciso 7.2:** 1 feature → permanece en directorio de la feature
 - [x] **Inciso 7.3:** Dependencias hacia adentro (features dependen de shared, nunca al revés)
@@ -102,6 +111,7 @@
 - [x] **Casos de aplicación:** Button, LoginForm, Helper temporal
 
 ### Patrones Referenciados
+
 - [x] Clean architecture / hexagonal cuando corresponda
 - [x] SOLID y enfoques funcionales como base
 - [x] Ningún patrón por reflejo o apariencia
@@ -114,6 +124,7 @@
 **Propósito:** Proteger trazabilidad e integración segura
 
 ### Artículos (7)
+
 - [x] **Art. 1:** Base Git obligatoria
 - [x] **Art. 2:** Rama identificable por tarea
 - [x] **Art. 3:** Worktree aislado (con excepciones definidas)
@@ -123,11 +134,13 @@
 - [x] **Art. 7:** Orden e higiene del trabajo
 
 ### Excepciones Worktree (3 condiciones)
+
 - [x] Riesgo bajo
 - [x] Superficie local
 - [x] Sin posibilidad de conflicto
 
 ### Higiene Obligatoria
+
 - [x] Eliminar archivos temporales
 - [x] Remover código muerto
 - [x] Limpiar imports inútiles
@@ -140,6 +153,7 @@
 **Propósito:** Validación reproducible, no por intuición
 
 ### Artículos (8)
+
 - [x] **Art. 1:** Testeabilidad obligatoria
 - [x] **Art. 2:** Calidad automatizada mínima
 - [x] **Art. 3:** Gates mínimos (lint, formato, typecheck, tests)
@@ -150,10 +164,12 @@
 - [x] **Art. 8:** Niveles de testing según riesgo
 
 ### Herramientas por Stack
+
 - [x] Python: Ruff, mypy, pytest, Pyrefly
 - [x] Frontend: Biome, suites del stack
 
 ### Revisión Manual (3 requisitos)
+
 - [x] Automatización no viable
 - [x] Documentar por qué
 - [x] Evidencia trazable del criterio
@@ -165,6 +181,7 @@
 **Propósito:** Evitar contradicciones entre código, docs y estado
 
 ### Artículos (6)
+
 - [x] **Art. 1:** Fuente de verdad explícita
 - [x] **Art. 2:** Separación contexto vs trabajo
 - [x] **Art. 3:** Prohibición de contradicción viva
@@ -172,7 +189,8 @@
 - [x] **Art. 5:** Cierre inválido sin reconciliación
 - [x] **Art. 6:** Documentación mínima obligatoria
 
-### Documentación Obligatoria Para:
+### Documentación Obligatoria Para
+
 - [x] Cambios de contrato/interfaz
 - [x] Comandos nuevos o modificados
 - [x] Configuración operativa
@@ -186,6 +204,7 @@
 **Propósito:** Independencia de proveedor/modelo LLM
 
 ### Artículos (6)
+
 - [x] **Art. 1:** Primacía del sistema
 - [x] **Art. 2:** Neutralidad de modelo (obligatoria salvo justificación)
 - [x] **Art. 3:** El modelo es componente, no centro
@@ -194,6 +213,7 @@
 - [x] **Art. 6:** Excepción de optimización (3 requisitos)
 
 ### Requisitos Excepción de Optimización
+
 - [x] Beneficio técnico real y demostrable
 - [x] Acoplamiento documentado y reversible
 - [x] Adapter para sustitución futura
@@ -205,6 +225,7 @@
 **Propósito:** Protección contra acciones inseguras y degradación
 
 ### Artículos (14)
+
 - [ ] **Art. 1:** Principio de mínimo privilegio
 - [ ] **Art. 2:** Acceso explícito y acotado
 - [ ] **Art. 3:** Fallo cerrado
@@ -221,6 +242,7 @@
 - [ ] **Art. 14:** Aprobación humana para acciones sensibles
 
 ### Art. 13 - Normas Básicas (12 incisos)
+
 - [ ] API keys fuera de prompts/commits/logs
 - [ ] Mínimo privilegio por defecto
 - [ ] Red controlada y justificada
@@ -235,6 +257,7 @@
 - [ ] Fallback seguro
 
 ### Art. 14 - Aprobación Humana
+
 - [ ] **14.1 Obligatoria:** producción, secretos, borrados, gobernanza
 - [ ] **14.2 Condicional:** contratos, migraciones, integraciones
 - [ ] **14.3 Requisitos:** especificidad, trazabilidad, no-expansión
@@ -248,6 +271,7 @@
 **Propósito:** Regular diseño, uso y protección de datos
 
 ### Artículos (17)
+
 - [x] **Art. 1:** Persistencia justificada
 - [x] **Art. 2:** BD es parte del sistema
 - [x] **Art. 3:** Modelo de datos explícito
@@ -273,6 +297,7 @@
 **Propósito:** Proteger estabilidad entre componentes
 
 ### Artículos (8)
+
 - [x] **Art. 1:** Contrato explícito
 - [x] **Art. 2:** Alcance del contrato (entradas, salidas, errores)
 - [x] **Art. 3:** Prohibición de interfaces implícitas críticas
@@ -283,6 +308,7 @@
 - [x] **Art. 8:** Contrato y validación alineados
 
 ### Tipos de Contrato
+
 - [x] API HTTP
 - [x] CLI
 - [x] Funciones
@@ -297,6 +323,7 @@
 **Propósito:** Sistema observable, auditable, evaluable
 
 ### Artículos (8)
+
 - [x] **Art. 1:** Observabilidad mínima obligatoria
 - [x] **Art. 2:** Evidencia operativa proporcional
 - [x] **Art. 3:** Distinción éxito aparente vs estado sano
@@ -313,6 +340,7 @@
 **Propósito:** Definir quién puede hacer qué, sobre qué superficies, bajo qué condiciones
 
 ### Artículos (6)
+
 - [x] **Art. 1:** Definiciones fundamentales (rol, capacidad, acto técnico, superficie, jurisdicción, veredicto)
 - [x] **Art. 2:** Principio de jurisdicción explícita
 - [x] **Art. 3:** Separación de capacidades (6 capacidades base)
@@ -321,6 +349,7 @@
 - [x] **Art. 6:** Superficies y niveles de riesgo
 
 ### Roles MVP
+
 - [x] `reader`: Solo lectura y análisis
 - [x] `editor`: Desarrollo estándar
 - [x] `reviewer`: Revisión de código
@@ -329,6 +358,7 @@
 - [x] `human-approver`: Aprobación humana
 
 ### Capacidades Base
+
 - [x] `read`: Leer archivos (low risk)
 - [x] `write`: Modificar código (medium risk)
 - [x] `review`: Revisar PRs (low risk)
@@ -337,6 +367,7 @@
 - [x] `approve`: Aprobar acciones (critical risk)
 
 ### Integración con Ley VIII
+
 - [x] Complementa régimen de aprobación humana
 - [x] Roles definen quién puede iniciar acciones
 - [x] Ley VIII define cuándo requiere aprobación adicional
@@ -348,6 +379,7 @@
 **Propósito:** Controlar desviaciones temporales
 
 ### Artículos (8)
+
 - [x] **Art. 1:** Excepción explícita (qué regla no aplica)
 - [x] **Art. 2:** Justificación mínima (por qué, riesgo, beneficio, control)
 - [x] **Art. 3:** Alcance acotado (qué, cuánto, hasta cuándo)
@@ -358,6 +390,7 @@
 - [x] **Art. 8:** Cierre de excepción
 
 ### Niveles de Autoridad
+
 - [x] **Bajo riesgo:** cualquier miembro responsable
 - [x] **Medio riesgo:** lead técnico
 - [x] **Alto riesgo:** arquitecto/responsable proyecto
@@ -368,11 +401,13 @@
 ## CHUNK 14: Interpretación + Anexos (Líneas 762-1006) ✅ REVISADO
 
 ### Interpretación General
+
 - [x] **Art. 1:** Espíritu de la constitución (6 principios)
 - [x] **Art. 2:** Regla de conflicto (seguridad > conveniencia)
 - [x] **Art. 3:** Regla anti-burocracia (proporcionalidad)
 
 ### Anexo I: CLOOP (7 Fases)
+
 - [x] **Fase 1 - Clarify:** comprender antes de mutar
 - [x] **Fase 2 - Layout:** planificar antes de ejecutar
 - [x] **Fase 3 - Operate:** ejecutar aislado y controlado
@@ -382,6 +417,7 @@
 - [x] **Fase 7 - Handoff:** dejar listo para continuidad
 
 ### Anexo II: Mapa de Enforcement
+
 - [x] **Categoría A:** Validación automática
 - [x] **Categoría B:** Revisión humana obligatoria
 - [x] **Categoría C:** Evidencia documental
@@ -389,6 +425,7 @@
 - [x] **Mapa por familia de normas** (11 leyes + excepciones)
 
 ### Estado de Versión
+
 - [x] Endurecimientos documentados
 - [x] Ambigüedades reducidas
 - [x] Lenguaje normativo homogeneizado
@@ -396,8 +433,11 @@
 ---
 
 ## CHUNK 15: Glosario (Líneas 1009-1241) ✅ REVISADO
+
 **75 términos definidos**
+
 ### Verificación de Integridad
+
 - [x] Sin contradicciones con Definiciones Fundamentales
 - [x] Términos técnicos cubiertos (sistema, agente, código agéntico)
 - [x] Términos operativos cubiertos (commit, worktree, gate)
@@ -405,6 +445,7 @@
 - [x] Términos de proceso cubiertos (trazabilidad, reconciliación, cierre)
 
 ### Términos Clave a Verificar
+
 - [x] #1 Sistema
 - [x] #2 Código agéntico
 - [x] #3 Agente

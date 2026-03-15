@@ -5,6 +5,7 @@
 ## Propósito
 
 Este documento proporciona:
+
 1. **Diagrama de flujo** del modelo de jurisdicción
 2. **Tablas de referencia rápida** para permisos por superficie
 3. **Guía de implementación** para el sistema de roles
@@ -31,6 +32,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 ## Referencia Rápida: Permisos por Superficie
 
 ### Rol Reader
+
 | Superficie | Permiso |
 |------------|---------|
 | src/, docs/, tests/ | ALLOW |
@@ -41,6 +43,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | database | DENY |
 
 ### Rol Editor
+
 | Superficie | Permiso |
 |------------|---------|
 | src/, docs/, tests/ | ALLOW |
@@ -50,6 +53,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | database | DENY |
 
 ### Rol Sensitive-Operator
+
 | Superficie | Permiso |
 |------------|---------|
 | .env | WARN |
@@ -59,6 +63,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | _ctx/policy/ | WARN |
 
 ### Rol Maintainer
+
 | Superficie | Permiso |
 |------------|---------|
 | * | ALLOW |
@@ -85,9 +90,11 @@ Ver `_ctx/policy/roles.yaml` para mapeo completo de 200+ superficies.
 ## Implementación
 
 ### Configuración
+
 Los roles se definen en: `_ctx/policy/roles.yaml`
 
 ### Integración con Ley VIII
+
 - **Roles** → Definen QUIÉN puede iniciar acciones
 - **Ley VIII, Art. 14** → Define CUÁNDO requiere aprobación humana adicional
 - Ver [Ley VIII](../AGENTIC-CONSTITUTION-v1.0.md#ley-viii-seguridad-agéntica) para el régimen completo de aprobación humana
