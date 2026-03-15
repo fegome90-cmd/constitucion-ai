@@ -38,5 +38,10 @@ ENV/
 *.log
 *.tmp
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
 # Git worktrees
 .worktrees/
