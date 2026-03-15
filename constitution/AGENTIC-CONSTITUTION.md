@@ -501,7 +501,9 @@ La decisión de requerir aprobación deberá basarse en:
 
 #### 14.4. Autoridades de aprobación y mapeo obligatorio
 
-**Obligación de mapeo local:** Todo sistema que adopte esta constitución deberá mapear explícitamente sus autoridades operativas en un documento accesible antes de aplicar cualquier aprobación humana. Este mapeo deberá residir en un artefacto explícito del proyecto: preferentemente `GOVERNANCE.md` en la raíz del repositorio, o en el `CLAUDE.md` del sistema cuando este documento sea la fuente de verdad operativa del proyecto. Este mapeo deberá incluir:
+**Obligación de mapeo local:** Todo sistema que adopte esta constitución deberá mapear explícitamente sus autoridades operativas en un documento accesible antes de aplicar cualquier aprobación humana. Este mapeo deberá incluir:
+
+- **Artefacto de mapeo:** El mapeo deberá residir en un artefacto explícito del proyecto — preferentemente `GOVERNANCE.md` en la raíz del repositorio, o en el `CLAUDE.md` del sistema cuando este documento sea la fuente de verdad operativa del proyecto.
 - Identificación de personas, roles o funciones autorizadas para aprobar acciones sensibles.
 - Niveles de autoridad según tipo de acción.
 - Mecanismo de registro de aprobaciones.
@@ -787,7 +789,7 @@ Esta ley complementa el régimen de aprobación humana:
 ## Objeto
 Establecer que, por defecto, la interacción entre agente y persona usuaria deberá privilegiar comprensión, análisis conceptual, evaluación de alternativas y justificación de decisiones antes de entrar en implementación.
 
-**Ámbito de aplicación:** Esta ley aplica a agentes con interfaz interactiva o conversacional donde existe intercambio en tiempo real con la persona usuaria. En agentes puramente autónomos —sin interacción humana durante la ejecución— los principios de esta ley se aplican en las fases de planificación y clarificación del ciclo operativo (CLOOP Fases 1 y 2), antes de que el agente entre en modo de ejecución.
+**Ámbito de aplicación:** Esta ley aplica a agentes con interfaz interactiva o conversacional donde existe intercambio en tiempo real con la persona usuaria. En agentes puramente autónomos —sin interacción humana durante la ejecución— los principios de esta ley se aplican en las fases de planificación y clarificación del ciclo operativo (CLOOP Fases 1 y 2).
 
 ### Artículo 1. Modo por defecto
 Salvo instrucción explícita en contrario o inicio claro de ejecución, la interacción deberá mantenerse en modo conceptual y explicativo, no en modo de implementación.
@@ -1164,9 +1166,11 @@ Toda enmienda deberá iniciarse con una propuesta explícita que incluya:
 
 ### Paso 2. Deliberación
 
-- **Parche:** Puede aprobarse por el responsable del repositorio sin deliberación extendida.
-- **Menor:** Requiere al menos una ronda de revisión con comentarios explícitos antes de aprobación.
-- **Mayor:** Requiere deliberación abierta, plazo mínimo de revisión de 7 días y aprobación por responsable del proyecto o equivalente.
+| Tipo de enmienda | Requisito de deliberación |
+|------------------|---------------------------|
+| **Parche** | Puede aprobarse por el responsable del repositorio sin deliberación extendida |
+| **Menor** | Requiere al menos una ronda de revisión con comentarios explícitos antes de aprobación |
+| **Mayor** | Requiere deliberación abierta, plazo mínimo de revisión de 7 días y aprobación por responsable del proyecto o equivalente |
 
 ### Paso 3. Aprobación
 
@@ -1194,7 +1198,7 @@ Los sistemas que adopten esta constitución deberán actualizar su referencia en
 ## Relación con el Régimen de Excepciones
 
 Las excepciones a normas constitucionales se rigen por el Régimen Operativo de Excepciones y son siempre temporales.
-Una excepción repetida más de 3 veces deberá evaluarse como candidata a enmienda formal, no perpetuarse como excepción informal.
+Una excepción repetida sistemáticamente deberá evaluarse como candidata a enmienda formal, no perpetuarse como excepción informal.
 
 ---
 
