@@ -29,6 +29,7 @@ constitucion-ai/
 Para usar esta constitución en un proyecto:
 
 1. **Referenciar desde CLAUDE.md del proyecto:**
+
    ```markdown
    # Gobernanza
    Este proyecto opera bajo la Constitución de Código Agéntico.
