@@ -120,21 +120,21 @@ constitucion-ai/
 # O individualmente
 ruff check .
 ruff format .
-mypy scripts/
-bandit -r scripts/
+mypy .
+bandit -r .
 codespell
 markdownlint-cli2 "**/*.md"
 ```
 
-### Pre-commit Hooks
 
-```bash
-# Instalar hooks
-pre-commit install
 
-# Ejecutar manualmente
-pre-commit run --all-files
-```
+
+
+
+
+
+
+
 
 ## Filosofía
 
