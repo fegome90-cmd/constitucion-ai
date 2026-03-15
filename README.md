@@ -1,8 +1,8 @@
 # Constitución de Código Agéntico
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](./constitution/AGENTIC-CONSTITUTION.md)
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](./pyproject.toml)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+[![Version](https://img.shields.io/badge/version-v1.1-blue.svg)](./constitution/AGENTIC-CONSTITUTION.md)
+
+
 
 > Marco fundacional para gobernanza de sistemas de IA en desarrollo de software.
 
