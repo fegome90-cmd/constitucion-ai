@@ -37,8 +37,8 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | _ctx/ | ALLOW |
 | _ctx/policy/ | ALLOW |
 | vault/ | ALLOW |
-| .env | DENY |
-| database | DENY |
+| .env | BLOCK |
+| database | BLOCK |
 
 ### Rol Editor
 | Superficie | Permiso |
@@ -47,7 +47,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | _ctx/ | ALLOW |
 | _ctx/policy/ | WARN |
 | .env | WARN |
-| database | DENY |
+| database | BLOCK |
 
 ### Rol Sensitive-Operator
 | Superficie | Permiso |
@@ -55,7 +55,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | .env | WARN |
 | database | REQUIRE_APPROVAL |
 | credentials | REQUIRE_APPROVAL |
-| production_secrets | DENY |
+| production_secrets | BLOCK |
 | _ctx/policy/ | WARN |
 
 ### Rol Maintainer
@@ -72,7 +72,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 
 | Rol | Capacidad Crítica | Superficie | Veredicto |
 |-----|-------------------|------------|-----------|
-| reader | read | .env | DENY |
+| reader | read | .env | BLOCK |
 | editor | write | _ctx/policy/ | REQUIRE_APPROVAL |
 | editor | write | .env | WARN |
 | sensitive-operator | sensitive_op | database | REQUIRE_APPROVAL |

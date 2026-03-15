@@ -8,6 +8,35 @@ Thumbs.db
 *.swp
 *.swo
 
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checking
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
 # Misc
 *.log
 *.tmp
+
+# Git worktrees
+.worktrees/

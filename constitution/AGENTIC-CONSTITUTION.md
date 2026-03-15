@@ -1,5 +1,5 @@
 # Constitución de Código Agéntico
-## Versión 1.0
+## Versión 1.1
 
 ## Preámbulo
 
@@ -501,7 +501,7 @@ La decisión de requerir aprobación deberá basarse en:
 
 #### 14.4. Autoridades de aprobación y mapeo obligatorio
 
-**Obligación de mapeo local:** Todo sistema que adopte esta constitución deberá mapear explícitamente sus autoridades operativas en un documento accesible antes de aplicar cualquier aprobación humana. Este mapeo deberá incluir:
+**Obligación de mapeo local:** Todo sistema que adopte esta constitución deberá mapear explícitamente sus autoridades operativas en un documento accesible antes de aplicar cualquier aprobación humana. Este mapeo deberá residir en un artefacto explícito del proyecto: preferentemente `GOVERNANCE.md` en la raíz del repositorio, o en el `CLAUDE.md` del sistema cuando este documento sea la fuente de verdad operativa del proyecto. Este mapeo deberá incluir:
 - Identificación de personas, roles o funciones autorizadas para aprobar acciones sensibles.
 - Niveles de autoridad según tipo de acción.
 - Mecanismo de registro de aprobaciones.
@@ -694,9 +694,9 @@ Toda tarea cerrada deberá dejar evidencia suficiente para sostener su cierre si
 
 ---
 
-## Ley XII. Roles, Capacidades y Jurisdicción Operativa
+# Ley XII. Roles, Capacidades y Jurisdicción Operativa
 
-### Objeto
+## Objeto
 Establecer un sistema de roles, capacidades y jurisdicción que determine qué agentes pueden realizar qué acciones, sobre qué superficies, y bajo qué condiciones.
 
 **Principio rector:** La herramienta no otorga permiso. La ley define qué actos son admisibles para qué roles, sobre qué superficies y bajo qué condiciones.
@@ -786,6 +786,8 @@ Esta ley complementa el régimen de aprobación humana:
 
 ## Objeto
 Establecer que, por defecto, la interacción entre agente y persona usuaria deberá privilegiar comprensión, análisis conceptual, evaluación de alternativas y justificación de decisiones antes de entrar en implementación.
+
+**Ámbito de aplicación:** Esta ley aplica a agentes con interfaz interactiva o conversacional donde existe intercambio en tiempo real con la persona usuaria. En agentes puramente autónomos —sin interacción humana durante la ejecución— los principios de esta ley se aplican en las fases de planificación y clarificación del ciclo operativo (CLOOP Fases 1 y 2), antes de que el agente entre en modo de ejecución.
 
 ### Artículo 1. Modo por defecto
 Salvo instrucción explícita en contrario o inicio claro de ejecución, la interacción deberá mantenerse en modo conceptual y explicativo, no en modo de implementación.
@@ -1127,6 +1129,75 @@ Establecer cómo se verifica el cumplimiento de cada familia de normas constituc
 
 ---
 
+# Anexo III. Proceso de enmienda constitucional
+
+## Objeto
+
+Regular cómo se proponen, deliberan, aprueban y registran los cambios a esta constitución, garantizando que evolucione de forma controlada, trazable y legítima.
+
+## Principios
+
+- Toda enmienda deberá ser proporcional al impacto que introduce.
+- Ninguna enmienda podrá aplicarse sin deliberación mínima y aprobación explícita.
+- La repetición informal de una desviación no constituye enmienda válida.
+
+## Tipos de enmienda
+
+| Tipo | Descripción | Ejemplo |
+|------|-------------|---------|
+| **Parche** | Corrección de errores formales, typos o inconsistencias sin impacto normativo | Corrección de typo, ajuste de redacción |
+| **Menor** | Adición o modificación de incisos, casos de aplicación o glosario sin alterar principios | Nuevo caso de aplicación en Ley IV |
+| **Mayor** | Nueva ley, modificación de artículos existentes, cambio en jerarquía interpretativa | Nueva Ley XIV, modificación de Definiciones Fundamentales |
+
+## Proceso
+
+### Paso 1. Propuesta
+
+Toda enmienda deberá iniciarse con una propuesta explícita que incluya:
+
+- Qué norma o sección se modifica.
+- Qué problema resuelve o qué vacío cubre.
+- Qué riesgo introduce la enmienda o su ausencia.
+- Tipo de enmienda (parche / menor / mayor).
+
+**Artefacto:** Issue o documento de propuesta en el repositorio de la constitución.
+
+### Paso 2. Deliberación
+
+- **Parche:** Puede aprobarse por el responsable del repositorio sin deliberación extendida.
+- **Menor:** Requiere al menos una ronda de revisión con comentarios explícitos antes de aprobación.
+- **Mayor:** Requiere deliberación abierta, plazo mínimo de revisión de 7 días y aprobación por responsable del proyecto o equivalente.
+
+### Paso 3. Aprobación
+
+Toda enmienda deberá aprobarse mediante mecanismo trazable:
+
+- Pull Request con descripción de la enmienda y tipo.
+- Aprobación explícita del responsable designado antes del merge.
+- Sin auto-merge silencioso para enmiendas de tipo menor o mayor.
+
+### Paso 4. Registro y versionado
+
+| Tipo de enmienda | Cambio de versión |
+|------------------|-------------------|
+| Parche | `v1.0` → `v1.0.1` (patch) |
+| Menor | `v1.0` → `v1.1` (minor) |
+| Mayor | `v1.0` → `v2.0` (major) |
+
+La Nota Editorial deberá actualizarse con cada enmienda aprobada, indicando tipo, fecha, norma afectada y responsable.
+
+### Paso 5. Vigencia
+
+La enmienda entra en vigor al mergearse en la rama principal del repositorio de la constitución.
+Los sistemas que adopten esta constitución deberán actualizar su referencia en el ciclo de mantenimiento siguiente.
+
+## Relación con el Régimen de Excepciones
+
+Las excepciones a normas constitucionales se rigen por el Régimen Operativo de Excepciones y son siempre temporales.
+Una excepción repetida más de 3 veces deberá evaluarse como candidata a enmienda formal, no perpetuarse como excepción informal.
+
+---
+
 <!-- NOTA EDITORIAL: La siguiente sección es metadata de versión sin fuerza normativa.
      No forma parte del cuerpo constitucional vinculante. -->
 
@@ -1162,11 +1233,13 @@ Esta versión 1.0 endurece y cierra la constitución mediante:
 - **Ley IX, Incisos operativos:** Corregido typo "Tout cambio" → "Todo cambio".
 - **Nota editorial:** Marcada explícitamente como no normativa mediante comentarios HTML.
 
-**Correcciones de saneamiento (2026-03-14):**
-- **Ley III, Art. 7:** Añadida Regla de Scope como artículo constitucional.
-- **Ley VIII, Art. 14.4:** Separada aprobación de acciones sensibles de aprobación de excepciones. Añadida nota aclaratoria.
-- **Ley IX, Incisos operativos:** Corregido typo "Tout cambio" → "Todo cambio".
-- **Nota editorial:** Marcada explícitamente como no normativa mediante comentarios HTML.
+**Enmiendas v1.1 (2026):**
+- **Tipo:** Menor + Parche
+- **WO-001 — Ley XII (fix estructural):** Corregido nivel de heading de `##` a `#` para paridad con el resto de leyes.
+- **WO-002 — Nota Editorial (fix editorial):** Eliminado bloque duplicado "Correcciones de saneamiento (2026-03-14)".
+- **WO-003 — Ley XIII, Objeto (menor):** Añadida delimitación de ámbito de aplicación para agentes no conversacionales (CLOOP Fases 1-2).
+- **WO-004 — Anexo III (menor):** Añadido proceso de enmienda constitucional con tipos, pasos, criterio de versionado y relación con el régimen de excepciones.
+- **WO-005 — Ley VIII, Art. 14.4 (parche):** Especificado artefacto de destino para el mapeo de autoridades (`GOVERNANCE.md` o `CLAUDE.md`).
 
 <!-- FIN DE NOTA EDITORIAL -->
 
