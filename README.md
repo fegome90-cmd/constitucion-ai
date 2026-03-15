@@ -153,7 +153,6 @@ No es burocracia por burocracia. Es estructura mínima necesaria para trabajar c
 | Versión | Archivo | Estado | Descripción |
 |---------|---------|--------|-------------|
 | v1.1 | [`constitution/AGENTIC-CONSTITUTION.md`](./constitution/AGENTIC-CONSTITUTION.md) | ✅ Activa | Estructura mejorada, 13 leyes, Anexo III |
-| v1.0 | [`archive/v1.0-AGENTIC-CONSTITUTION.md`](./archive/v1.0-AGENTIC-CONSTITUTION.md) | 📁 Archivada | Versión base con 7 leyes |
 | v0.7 | [`archive/v0.7-AGENTIC-CONSTITUTION.md`](./archive/v0.7-AGENTIC-CONSTITUTION.md) | 📁 Archivada | Versión inicial |
 
 ## Contribuir
