@@ -169,7 +169,7 @@ Ver [`constitution/REVIEW-CHECKLIST.md`](./constitution/REVIEW-CHECKLIST.md) par
 
 ## Licencia
 
-MIT - Usa, modifica, comparte libres.
+MIT - Usa, modifica, comparte libremente.
 
 ---
 
