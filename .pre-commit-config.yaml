@@ -18,6 +18,9 @@ repos:
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]
+        additional_dependencies:
+          - types-PyYAML
+          - pytest
 
   # Markdown
   - repo: https://github.com/DavidAnson/markdownlint-cli2

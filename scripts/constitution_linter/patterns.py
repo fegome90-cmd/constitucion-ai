@@ -13,7 +13,7 @@ SEG-004: Includes ReDoS validation for regex patterns.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -84,7 +84,7 @@ def _validate_regex_safety(pattern: str) -> None:
 # =============================================================================
 
 # Directory aliases that should be .ai/
-DIRECTORY_ALIAS_PATTERNS: Final[list[dict]] = [
+DIRECTORY_ALIAS_PATTERNS: Final[list[dict[str, Any]]] = [
     {
         "pattern": r"\.claude[\\\/]",
         "suggestion": ".ai/",
@@ -120,7 +120,7 @@ DIRECTORY_ALIAS_PATTERNS: Final[list[dict]] = [
 ]
 
 # File aliases that should use .ai* naming
-FILE_ALIAS_PATTERNS: Final[list[dict]] = [
+FILE_ALIAS_PATTERNS: Final[list[dict[str, Any]]] = [
     {
         "pattern": r"\.cursorrules\b",
         "suggestion": ".airules",
@@ -148,7 +148,7 @@ FILE_ALIAS_PATTERNS: Final[list[dict]] = [
 ]
 
 # Text references that violate neutrality
-TEXT_REFERENCE_PATTERNS: Final[list[dict]] = [
+TEXT_REFERENCE_PATTERNS: Final[list[dict[str, Any]]] = [
     {
         "pattern": r"[Cc]laude",
         "suggestion": "AI",
@@ -213,7 +213,7 @@ def _parse_scope(value: str) -> MatchScope:
     return mapping[value.lower()]
 
 
-def _parse_pattern(data: dict) -> Pattern:
+def _parse_pattern(data: dict[str, Any]) -> Pattern:
     """
     Parse and validate a single pattern from config.
 
@@ -295,7 +295,7 @@ def get_violation_type(pattern: Pattern) -> ViolationType:
     return ViolationType.TEXT_REFERENCE
 
 
-def compile_pattern(pattern: Pattern) -> re.Pattern:
+def compile_pattern(pattern: Pattern) -> re.Pattern[str]:
     """Compile a pattern with appropriate flags."""
     flags = 0
     if not pattern.case_sensitive:

@@ -7,8 +7,7 @@ Scans files and directories for model neutrality violations.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from .patterns import compile_pattern, get_default_patterns, get_violation_type
 from .types import (
@@ -21,6 +20,9 @@ from .types import (
     Severity,
     Violation,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

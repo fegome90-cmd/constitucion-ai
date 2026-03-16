@@ -12,9 +12,8 @@ import logging
 import re
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, TypeVar
+from typing import TYPE_CHECKING, Final, TypeVar, cast
 
 from .fixer import ConstitutionFixer, PathSecurityError
 from .reporter import Reporter
@@ -22,6 +21,8 @@ from .scanner import ConstitutionScanner
 from .types import MAX_CONTEXT_LENGTH
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .types import FixPlan, ScanResult
 
 # =============================================================================
@@ -52,10 +53,10 @@ MAX_COMMIT_VIOLATIONS: Final[int] = 10
 # ERROR HANDLING DECORATOR (SMELL-002)
 # =============================================================================
 
-F = TypeVar("F", bound=Callable[[argparse.Namespace], int])
+F = TypeVar("F", bound="Callable[[argparse.Namespace], int]")
 
 
-def handle_scan_errors(func: F) -> F:
+def handle_scan_errors[F: "Callable[[argparse.Namespace], int]"](func: F) -> F:
     """
     Decorator to handle common scan errors.
 
@@ -563,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return EXIT_SUCCESS
 
-    return args.func(args)
+    return cast("int", args.func(args))
 
 
 __all__ = [

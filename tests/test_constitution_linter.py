@@ -11,6 +11,7 @@ Comprehensive tests for the constitution linter covering:
 
 from __future__ import annotations
 
+import contextlib
 import re
 from pathlib import Path
 
@@ -34,6 +35,7 @@ from constitution_linter import (
     scan,
     validate_pattern,
 )
+from constitution_linter.fixer import PathSecurityError
 
 # =============================================================================
 # FIXTURES
@@ -80,28 +82,6 @@ def assert_scan_result(
     assert isinstance(result, ScanResult), f"Expected ScanResult, got {type(result)}"
     assert result.passed == expected_passed, (
         f"Expected passed={expected_passed}, got {result.passed}"
-    )
-    if expected_violations is not None:
-        assert result.total_violations == expected_violations, (
-            f"Expected {expected_violations} violations, got {result.total_violations}"
-        )
-
-
-# =============================================================================
-# TEST HELPERS
-# =============================================================================
-
-
-def assert_scan_result(
-    result: ScanResult,
-    *,
-    expected_passed: bool,
-    expected_violations: int | None = None,
-) -> None:
-    """Helper to assert scan results with clear error messages."""
-    assert result.passed == expected_passed, (
-        f"Expected passed={expected_passed}, got {result.passed}. "
-        f"Violations: {result.total_violations}"
     )
     if expected_violations is not None:
         assert result.total_violations == expected_violations, (
@@ -516,7 +496,7 @@ class TestFixer:
 
         # Try to access a file outside the base directory
         outside_path = Path("/etc/passwd")
-        with pytest.raises(Exception):  # PathSecurityError
+        with pytest.raises(PathSecurityError):
             fixer._validate_path_in_base(outside_path)
 
 
@@ -782,10 +762,8 @@ class TestCLI:
         """CLI --help should output usage information."""
         from constitution_linter.cli import main
 
-        try:
+        with contextlib.suppress(SystemExit):
             main(["--help"])
-        except SystemExit:
-            pass
 
         captured = capsys.readouterr()
         assert "scan" in captured.out or "constitution-linter" in captured.out

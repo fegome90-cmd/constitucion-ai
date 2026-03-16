@@ -102,7 +102,7 @@ SEVERITY_COLORS = {
 RESET_COLOR = "\033[0m"
 
 
-def _get_icons(use_emoji: bool = True) -> tuple[dict, dict]:
+def _get_icons(use_emoji: bool = True) -> tuple[dict[Severity, str], dict[str, str]]:
     """
     NIT-002: Get appropriate icon sets based on emoji support.
 
