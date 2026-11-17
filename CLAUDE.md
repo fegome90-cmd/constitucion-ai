@@ -23,10 +23,15 @@ constitucion-ai/
 │   ├── adr/                       # Decisiones difíciles de revertir
 │   ├── agents/                    # Configuración de skills y tracker
 │   └── mandate-roles-and-jurisdiction.md
-├── templates/                     # Config kits por lenguaje
+├── templates/                     # Config kits y fuente canónica de pins
+├── starters/                      # Proyectos ejecutables y lockfiles
+├── catalog.json                   # Índice y contrato de comandos v2
+├── tooling/                       # Auditor de estructura y gates
+├── AUDITORIA.md                   # Resultados y excepciones
 ├── scripts/
 │   ├── apply-kit.sh               # Aplica un kit y corre el smoke test
-│   └── check-versions.sh          # Re-resuelve pins y detecta drift
+│   ├── check-versions.sh          # Verifica pins, drift y enlaces entre capas
+│   └── scaffold.py                # Exporta un starter independiente
 ├── GLOSSARY.md                    # Vocabulario canónico
 └── CLAUDE.md                      # Este archivo
 ```

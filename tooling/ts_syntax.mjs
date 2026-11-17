@@ -16,12 +16,13 @@ const ts = require(join(globalPath, "typescript"));
 
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
+    if (["node_modules", "dist", "test-results", "playwright-report"].includes(name)) return [];
     const path = join(dir, name);
     return statSync(path).isDirectory() ? walk(path) : [path];
   });
 }
 
-const root = fileURLToPath(new URL("../templates/", import.meta.url));
+const root = fileURLToPath(new URL("../starters/", import.meta.url));
 let files = 0;
 let failed = 0;
 for (const template of ["typescript", "react", "playwright", "puppeteer"]) {

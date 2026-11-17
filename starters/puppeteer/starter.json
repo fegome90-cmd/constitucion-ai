@@ -2,7 +2,7 @@
   "id": "puppeteer",
   "runtime": "Node.js >=22.12 + pnpm 12 + Chrome",
   "commands": {
-    "setup": "pnpm install && pnpm exec puppeteer browsers install chrome",
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec puppeteer browsers install chrome",
     "format": "pnpm exec biome format --write .",
     "lint": "pnpm exec biome check .",
     "typecheck": "pnpm exec tsc --noEmit",

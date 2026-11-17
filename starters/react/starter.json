@@ -2,7 +2,7 @@
   "id": "react",
   "runtime": "Node.js >=22.12 + pnpm 12",
   "commands": {
-    "setup": "pnpm install",
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts",
     "format": "pnpm exec biome format --write .",
     "lint": "pnpm exec biome check .",
     "typecheck": "pnpm exec tsc --noEmit",

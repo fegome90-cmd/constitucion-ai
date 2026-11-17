@@ -5,7 +5,7 @@ async function main(): Promise<void> {
   const browser = await puppeteer.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.goto("data:text/html,<h1>Automatización lista</h1>");
+    await page.setContent("<h1>Automatización lista</h1>");
     const heading = await page.$eval(
       "h1",
       (el) => el.textContent?.trim() ?? "",

@@ -1,3 +1,1 @@
-module example.com/starter-go
-
-go 1.23
+../../templates/go/go.mod

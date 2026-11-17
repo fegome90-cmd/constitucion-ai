@@ -10,4 +10,4 @@ Relevamiento del 17 de noviembre de 2026. Barra: ≥1M descargas semanales o ≥
 | maven-compiler-plugin | 3.14.1 | ★265 (sin descargas) | commit 2026-11-12 | NO PASA |
 | maven-surefire-plugin | 3.5.4 | ★466 (sin descargas) | commit 2026-11-17 | NO PASA |
 
-Los dos plugins de Maven no alcanzan la barra por estrellas y Maven Central no expone descargas. Se conservan por ser parte del build estándar de Maven: excepción documentada, no un PASS encubierto.
+El mantenedor aceptó conservar estas herramientas el 17 de noviembre de 2026. Su estado de adopción sigue siendo `NO PASA`. La decisión local, su alcance y el registro externo pendiente se describen en [AUDITORIA.md](../../AUDITORIA.md#excepción-a-la-evidence-bar).

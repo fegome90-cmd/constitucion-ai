@@ -10,4 +10,4 @@ Relevamiento del 17 de noviembre de 2026. Barra: ≥1M descargas semanales o ≥
 | LuaLS | 3.19.2 | ★4.412 (sin descargas) | release 2026-10-13 | NO PASA |
 | LuaRocks | 3.13.0 | ★3.753 (sin descargas) | commit 2026-10-29 | NO PASA |
 
-CONFLICTO CON LA BARRA: cuatro herramientas no alcanzan ≥5k estrellas y no hay métrica de descargas verificable. Están incluidas porque vienen del ZIP auditado y sus gates pasan, pero NO deben considerarse certificadas por la evidence bar hasta que el usuario decida.
+El mantenedor aceptó conservar estas herramientas el 17 de noviembre de 2026. Su estado de adopción sigue siendo `NO PASA`. La decisión local, su alcance y el registro externo pendiente se describen en [AUDITORIA.md](../../AUDITORIA.md#excepción-a-la-evidence-bar).

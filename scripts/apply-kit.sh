@@ -38,7 +38,23 @@ for file in "${FILES[@]}"; do
 done
 
 for file in "${FILES[@]}"; do
-  cp "${KIT_DIR}/${file}" "${DEST}/${file}"
+  if [[ "${KIT}" == "python" && "${file}" == "pyproject.toml" ]]; then
+    # Existing projects receive the tool configuration and the generic project descriptor.
+    awk '
+      /^\[/ { section = $0 }
+      section == "[build-system]" { next }
+      section == "[project]" && /^readme[[:space:]]*=/ { next }
+      section == "[project]" && /^name[[:space:]]*=/ {
+        $0 = "name = \"python-config-kit-project\""
+      }
+      section == "[project]" && /^description[[:space:]]*=/ {
+        $0 = "description = \"Proyecto mínimo generado desde el config kit Python\""
+      }
+      { print }
+    ' "${KIT_DIR}/${file}" > "${DEST}/${file}"
+  else
+    cp "${KIT_DIR}/${file}" "${DEST}/${file}"
+  fi
 done
 
 echo "Kit '${KIT}' aplicado en ${DEST}"

@@ -3,7 +3,7 @@
 React 19, Vite 8, TS strict y Testing Library. No Tailwind, router ni biblioteca UI por defecto.
 
 ```sh
-pnpm install
+pnpm install --frozen-lockfile --ignore-scripts
 pnpm lint
 pnpm typecheck
 pnpm test

@@ -1,47 +1,35 @@
-# Auditoría de la integración · 17 de noviembre de 2026
+# Auditoría de integración del 17 de noviembre de 2026
 
-## Dictamen: VALIDACIÓN PARCIAL
+## Dictamen
 
-Los diez config kits y sus starters fueron integrados y **sus gates se ejecutaron de verdad en este entorno**, con los locks congelados y las versiones fijadas. No se certifica la evidence bar de todas las herramientas: hay excepciones documentadas más abajo.
+La ejecución de los starters obtuvo **65 PASS, 0 FAIL y 0 SKIP** en macOS arm64. La validación de adopción de herramientas sigue **PARCIAL** por la excepción de Lua y Maven.
 
-## Gates ejecutados
+## Evidencia de ejecución
 
-| Kit | Comandos ejecutados | Resultado |
-| --- | --- | --- |
-| python | `uv sync --frozen`, ruff format/check, mypy src, pytest, uv build | PASS con ruff 0.17.5, mypy 2.4.1, pytest 9.2.0, uv 0.13.9 |
-| typescript | `pnpm install --frozen-lockfile`, `pnpm run check` | PASS |
-| react | idem | PASS |
-| css | idem | PASS |
-| playwright | idem + E2E con Chromium real | PASS (1 test Chromium) |
-| puppeteer | idem + Chrome real | PASS (2 tests node:test) |
-| rust | `rustup run 1.100.0 cargo` fmt/clippy/test/build --locked | PASS |
-| go | `go test/vet/build ./...` con GOPROXY=off | PASS |
-| java | `mvn package`, `mvn spotless:check`, `mvn test` | PASS (tras actualizar google-java-format a 2.0.0) |
-| lua | Lua 5.4.9, stylua 2.6.0, busted 2.3.0 | PASS |
+El [readiness report actual](evidencia/readiness-current.json) registra los comandos, códigos de salida y extractos de la ejecución de `setup` y `check` para los diez starters. Cada ejecución partió de una exportación temporal desde `scripts/scaffold.py`. Los siete lockfiles comprobados conservaron su SHA-256.
 
-Suite del repo: 63 tests verdes. ruff, mypy, shellcheck y markdownlint sin hallazgos.
+- Python ejecutó Ruff, mypy, pytest y el build con uv.
+- TypeScript, React y CSS ejecutaron sus checks con instalación congelada de pnpm. Los setups omiten scripts de instalación de dependencias.
+- Playwright ejecutó un test en Chromium. Puppeteer ejecutó dos tests unitarios y abrió Chrome con el programa compilado.
+- Rust ejecutó fmt, Clippy, tests y build con el toolchain fijado. Go ejecutó vet, tests y build.
+- Java ejecutó Spotless y Maven Verify con dos tests JUnit. Lua ejecutó StyLua y Busted.
 
-## Correcciones reales hechas durante la integración
+Podés reproducir el informe con `python3 tooling/audit.py --run-gates --output /tmp/readiness.json` desde un checkout de confianza con los runtimes del catálogo. Sin `--run-gates`, el informe solo toma evidencia estructural y registra los gates como `SKIP`.
 
-- El ZIP nunca ejecutó Biome: TypeScript, React, Playwright y Puppeteer tenían errores de formato. Se corrigieron.
-- `spotless:check` fallaba con google-java-format 1.30.0 bajo JDK 27; se fijó 2.0.0.
-- El starter Python usaba pyrefly y rangos de versión; se alineó con mypy y pins exactos del config kit.
-- El guard de pytest en `audit.py` y en el test del generador usaba `shutil.which` en vez de importabilidad del módulo: daba FAIL falso cuando el binario existe pero el módulo no.
-- La toolchain Rust 1.100.0 no estaba instalada y el cargo de Nix (1.99.0) hacía shadowing: se instaló 1.100.0 y se invoca con `rustup run`.
+## Consistencia de versiones
 
-## Advertencias y excepciones a la evidence bar
+Cada descriptor de pins del catálogo se declara en `templates/`. El starter enlaza ese archivo y conserva su lockfile cuando aplica. `bash scripts/check-versions.sh` devuelve código 1 cuando falta una fuente, el pin no es exacto, el starter no apunta al descriptor canónico o el dato de registry difiere. Una diferencia de versión queda visible sin modificar el pin.
 
-- **Lua**: busted (★1.649), StyLua (★2.340), LuaLS (★4.412) y LuaRocks (★3.753) no alcanzan ≥5k estrellas y no hay métrica de descargas verificable. Sus gates pasan, pero **no están certificados por la barra**. El maintainer aceptó la excepción el 17 de noviembre de 2026: se conservan con estado `NO PASA` explícito en `EVIDENCE.md`.
-- **Java**: maven-compiler-plugin (★265) y maven-surefire-plugin (★466) están por debajo de la barra; se conservan por ser parte del build estándar de Maven. Maven Central no expone descargas.
-- **Pins exactos detrás del latest**: `@types/node` 22.20.5 (alineado con Node 22), jsdom 27.0.0, Testing Library 16.3.0 y puppeteer 25.17.0. El verificador los reporta como AVISO, no como FAIL.
-- **Playwright/Puppeteer**: los navegadores se instalaron y los E2E pasaron, pero no se versionan binarios de navegador: `setup` los descarga.
+## Excepción a la evidence bar
 
-## Integridad
+El mantenedor aceptó conservar las herramientas siguientes el 17 de noviembre de 2026. Las fichas de evidencia mantienen el estado `NO PASA` para la adopción.
 
-- `evidencia/sha256-archivos.txt` conserva la huella **inmutable del ZIP original** (sus rutas son `templates/...`, no `starters/...`).
-- `MANIFEST.current.sha256` regresa el estado final del repo integrado.
-- Orden de gobernanza: ADR-0004 y ADR-0005 se escribieron antes del código, y ADR-0002 quedó marcada como superseded.
+- [Lua](templates/lua/EVIDENCE.md) conserva Busted, StyLua, LuaLS y LuaRocks.
+- [Java](templates/java/EVIDENCE.md) conserva Maven Compiler Plugin y Maven Surefire Plugin.
 
-## Cierre
+La decisión local quedó registrada en `808bce0`. La anotación en el issue o PR que acoja la excepción sigue pendiente según [CLAUDE.md](CLAUDE.md#mecanismo-de-registro-de-aprobaciones) y debe citar el régimen de excepciones de Ley VIII, Art. 14 y Anexo III. El registro formal requiere confirmar la identidad del aprobador, la vigencia y el control compensatorio conforme al Régimen Operativo de Excepciones.
 
-La excepción de Lua y de los plugins Maven quedó aceptada y documentada. El dictamen permanece **PARCIAL** por decisión, no por gates pendientes: para pass completo habría que sustituir esas herramientas por alternativas que sí cumplan la barra.
+## Procedencia e integridad
+
+- Las [122 huellas históricas](evidencia/sha256-archivos.txt) se cotejaron con las entradas del ZIP original del laboratorio. Todas coincidieron. El [informe histórico](evidencia/auditoria.json) corresponde a ese ZIP.
+- [MANIFEST.current.sha256](MANIFEST.current.sha256) registra el contenido integrado. Los enlaces simbólicos se verifican leyendo el contenido del descriptor canónico.

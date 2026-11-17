@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "build": "tsc -p tsconfig.build.json",
-    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run start"
   },
   "dependencies": {
     "puppeteer": "25.17.0"

@@ -9,7 +9,7 @@
       "runtime": "Node.js >=22.12 + pnpm 12 (Vite)",
       "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
       "commands": {
-        "setup": "pnpm install --frozen-lockfile",
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
         "format": "pnpm exec biome format --write src/",
         "lint": "pnpm exec biome check src/ tests/",
         "typecheck": null,
@@ -60,7 +60,7 @@
       "runtime": "Lua 5.4 + LuaRocks",
       "pins": { "file": "rocks.txt", "format": "luarocks-exact", "registry": "luarocks" },
       "commands": {
-        "setup": "luarocks install busted",
+        "setup": "version=$(sed -n 's/^busted==//p' rocks.txt) && (luarocks --lua-version=5.4 --local show busted \"${version:?missing busted pin}\" || luarocks --lua-version=5.4 --local install busted \"$version\")",
         "format": "stylua src spec",
         "lint": "stylua --check src spec",
         "typecheck": null,
@@ -77,7 +77,7 @@
       "runtime": "Node.js >=22.12 + pnpm 12 + Chromium",
       "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
       "commands": {
-        "setup": "pnpm install --frozen-lockfile && pnpm exec playwright install chromium",
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec playwright install chromium",
         "format": "pnpm exec biome format --write .",
         "lint": "pnpm exec biome check .",
         "typecheck": "pnpm exec tsc --noEmit",
@@ -94,14 +94,14 @@
       "runtime": "Node.js >=22.12 + pnpm 12 + Chrome",
       "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
       "commands": {
-        "setup": "pnpm install --frozen-lockfile && pnpm exec puppeteer browsers install chrome",
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec puppeteer browsers install chrome",
         "format": "pnpm exec biome format --write .",
         "lint": "pnpm exec biome check .",
         "typecheck": "pnpm exec tsc --noEmit",
         "test": "pnpm test",
         "build": "pnpm build",
         "dev": "pnpm dev",
-        "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+        "check": "pnpm run check"
       }
     },
     {
@@ -128,7 +128,7 @@
       "runtime": "Node.js >=22.12 + pnpm 12",
       "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
       "commands": {
-        "setup": "pnpm install --frozen-lockfile",
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
         "format": "pnpm exec biome format --write .",
         "lint": "pnpm exec biome check .",
         "typecheck": "pnpm exec tsc --noEmit",
@@ -162,7 +162,7 @@
       "runtime": "Node.js >=22.12 + pnpm 12",
       "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
       "commands": {
-        "setup": "pnpm install --frozen-lockfile",
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
         "format": "pnpm exec biome format --write .",
         "lint": "pnpm exec biome check .",
         "typecheck": "pnpm exec tsc --noEmit",

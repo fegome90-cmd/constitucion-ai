@@ -27,6 +27,6 @@ Aplicar el kit con el script del repo:
 scripts/apply-kit.sh python <destino>
 ```
 
-El script copia los archivos y corre el smoke test. Para combinarlo con las herramientas transversales, aplicar también el kit `_common`.
+El script conserva los pins y la configuración de herramientas. Omite los metadatos de empaquetado del starter y corre el smoke test. Para combinarlo con las herramientas transversales, aplicar también el kit `_common`.
 
 La evidencia que justifica cada herramienta está en `EVIDENCE.md`.

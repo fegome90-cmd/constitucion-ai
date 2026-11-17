@@ -3,8 +3,9 @@
 Lua 5.4. Busted es el runner; StyLua el formateador; LuaLS apoya el diagnóstico de editor.
 
 ```sh
-luarocks install busted
-# instalar StyLua por release oficial o gestor de paquetes
+version=$(sed -n 's/^busted==//p' rocks.txt)
+luarocks --lua-version=5.4 --local install busted "${version:?}"
+# Instalar la versión de StyLua indicada en rocks.txt y habilitar los binarios de LuaRocks.
 stylua --check src spec
 busted
 lua src/main.lua

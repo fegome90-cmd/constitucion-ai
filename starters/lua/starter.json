@@ -2,7 +2,7 @@
   "id": "lua",
   "runtime": "Lua 5.4 + LuaRocks",
   "commands": {
-    "setup": "luarocks install busted",
+    "setup": "version=$(sed -n 's/^busted==//p' rocks.txt) && (luarocks --lua-version=5.4 --local show busted \"${version:?missing busted pin}\" || luarocks --lua-version=5.4 --local install busted \"$version\")",
     "format": "stylua src spec",
     "lint": "stylua --check src spec",
     "typecheck": null,

@@ -1,190 +1,250 @@
 #!/usr/bin/env python3
-"""Auditoría reproducible del kit sin instalar dependencias ni descargar binarios."""
+"""Audit the two-layer catalog and optionally execute its starter gates."""
+
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import hashlib
 import json
 import os
-import shutil
-import subprocess
+import platform
+import re
+import subprocess  # nosec B404 - Required for the opt-in starter gates.
 import sys
 import tempfile
-import time
-import tomllib
-import urllib.request
-import xml.etree.ElementTree as ET
+from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-EXPECTED = {"python", "typescript", "java", "react", "css", "rust", "go", "lua", "playwright", "puppeteer"}
+EXPECTED = {
+    "css",
+    "go",
+    "java",
+    "lua",
+    "playwright",
+    "puppeteer",
+    "python",
+    "react",
+    "rust",
+    "typescript",
+}
 REQUIRED_OPERATIONS = {"setup", "format", "lint", "typecheck", "test", "build", "dev", "check"}
-NODE = {"typescript", "react", "css", "playwright", "puppeteer"}
+STARTER_FILES = {"README.md", "AGENTS.md", "starter.json", ".gitignore", ".editorconfig"}
+LOCKFILES = dict.fromkeys(
+    {"css", "typescript", "react", "playwright", "puppeteer"}, "pnpm-lock.yaml"
+) | {
+    "python": "uv.lock",
+    "rust": "Cargo.lock",
+}
+
+
+def load_catalog(root: Path) -> list[dict[str, Any]]:
+    catalog = json.loads((root / "catalog.json").read_text())
+    entries: list[dict[str, Any]] = catalog["templates"]
+    names = {entry["id"] for entry in entries}
+    if catalog["schema_version"] != 2 or len(entries) != len(EXPECTED) or names != EXPECTED:
+        raise ValueError("Se esperan diez entradas únicas del catálogo v2")
+    for layer, field in (("templates", "config_dir"), ("starters", "starter_dir")):
+        for entry in entries:
+            relative = Path(layer) / entry["id"]
+            if Path(entry[field]) != relative or not (root / relative).is_dir():
+                raise ValueError(f"Ruta inválida o ausente: {relative}")
+    return entries
+
+
+def audit_structure(root: Path, entry: dict[str, Any], results: list[dict[str, Any]]) -> bool:
+    name = entry["id"]
+    config = root / entry["config_dir"]
+    starter = root / entry["starter_dir"]
+    missing = sorted(file for file in STARTER_FILES if not (starter / file).is_file())
+    results.append(
+        result(name, "base_structure", "FAIL" if missing else "PASS", ", ".join(missing))
+    )
+
+    commands = entry["commands"]
+    manifest = (
+        json.loads((starter / "starter.json").read_text()) if "starter.json" not in missing else {}
+    )
+    valid = (
+        manifest.get("id") == name
+        and manifest.get("commands") == commands
+        and set(commands) == REQUIRED_OPERATIONS
+        and all(
+            value is None or isinstance(value, str) and bool(value.strip())
+            for value in commands.values()
+        )
+        and all(commands[gate] for gate in ("setup", "check"))
+    )
+    results.append(result(name, "command_contract", "PASS" if valid else "FAIL"))
+
+    pin = Path(entry["pins"]["file"])
+    source = config / pin
+    link = starter / pin
+    linked = (
+        source.is_file()
+        and not source.is_symlink()
+        and link.is_symlink()
+        and not link.readlink().is_absolute()
+        and link.resolve() == source
+    )
+    results.append(
+        result(name, "pin_source", "PASS" if linked else "FAIL", str(source.relative_to(root)))
+    )
+
+    lockfile = LOCKFILES.get(name)
+    locked = lockfile is None or (starter / lockfile).is_file()
+    if lockfile:
+        results.append(result(name, "lockfile", "PASS" if locked else "FAIL", lockfile))
+    return not missing and valid and linked and locked
+
+
+def result(
+    name: str, check: str, status: str, detail: str = "", **evidence: str | int
+) -> dict[str, Any]:
+    return {"template": name, "check": check, "status": status, "detail": detail, **evidence}
+
+
+def run_gates(root: Path, entry: dict[str, Any], results: list[dict[str, Any]]) -> None:
+    name = entry["id"]
+    commands = entry["commands"]
+    with tempfile.TemporaryDirectory(prefix="starter-audit-") as directory:
+        project = Path(directory).resolve() / f"starter-{name}"
+        # The caller explicitly opted in to executing a trusted checkout.
+        export = subprocess.run(  # nosec B603
+            [
+                sys.executable,
+                str(root / "scripts/scaffold.py"),
+                "--template",
+                name,
+                "--name",
+                project.name,
+                "--output",
+                directory,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if export.returncode != 0:
+            results.append(
+                result(name, "scaffold", "FAIL", export.stderr.strip(), exit_code=export.returncode)
+            )
+            results.extend(
+                result(name, gate, "SKIP", "Falló la exportación") for gate in ("setup", "check")
+            )
+            return
+
+        lockfile = project / LOCKFILES[name] if name in LOCKFILES else None
+        digest = hashlib.sha256(lockfile.read_bytes()).hexdigest() if lockfile else None
+        environment = os.environ | {
+            "UV_FROZEN": "true",
+            "GOWORK": "off",
+            "GOTOOLCHAIN": "local",
+            "CARGO_NET_OFFLINE": "true",
+        }
+        setup_passed = True
+        for gate in ("setup", "check"):
+            command = commands[gate]
+            if not setup_passed:
+                results.append(result(name, gate, "SKIP", "Setup incompleto", command=command))
+                continue
+            try:
+                # Execute the reviewed command contract in the exported project.
+                outcome = subprocess.run(  # nosec B603
+                    ["/bin/sh", "-ec", command],
+                    cwd=project,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    errors="replace",
+                    timeout=300,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as error:
+                results.append(result(name, gate, "FAIL", str(error), command=command))
+                setup_passed = False
+                continue
+            log = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", outcome.stdout + outcome.stderr)
+            log = log.replace(str(project), ".").replace(str(Path.home()), "$HOME")
+            detail = log.strip()[-3000:]
+            setup_passed = outcome.returncode == 0
+            status = "PASS" if setup_passed else "SKIP" if outcome.returncode == 127 else "FAIL"
+            results.append(
+                result(
+                    name,
+                    gate,
+                    status,
+                    detail,
+                    command=command,
+                    exit_code=outcome.returncode,
+                )
+            )
+        if lockfile:
+            unchanged = (
+                lockfile.is_file() and hashlib.sha256(lockfile.read_bytes()).hexdigest() == digest
+            )
+            results.append(
+                result(
+                    name,
+                    "lock_integrity",
+                    "PASS" if unchanged else "FAIL",
+                    f"{lockfile.name} {digest}",
+                )
+            )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--output", type=Path, help="Write the readiness report as JSON")
+    parser.add_argument(
+        "--run-gates", action="store_true", help="Run setup and check from a trusted checkout"
+    )
     args = parser.parse_args()
     root = args.root.resolve()
-    templates = root / "templates"
-    results: list[dict] = []
-
-    def record(template: str, check: str, status: str, detail: str = "") -> None:
-        results.append({"template": template, "check": check, "status": status, "detail": detail[:1200]})
-
-    found = {path.name for path in templates.iterdir() if path.is_dir()}
-    record("catalog", "templates_expected", "PASS" if found == EXPECTED else "FAIL", f"found={sorted(found)}")
+    results: list[dict[str, Any]] = []
     try:
-        catalog = json.loads((root / "catalog.json").read_text())
-        indexed = {item["id"] for item in catalog["templates"]}
-        paths_ok = all((root / item["path"] / "starter.json").is_file() for item in catalog["templates"])
-        record("catalog", "catalog_json", "PASS" if indexed == EXPECTED and paths_ok else "FAIL", f"entries={len(catalog['templates'])} paths_ok={paths_ok}")
-    except Exception as exc:
-        record("catalog", "catalog_json", "FAIL", str(exc))
-
-    for name in sorted(found):
-        path = templates / name
-        required = {"README.md", "AGENTS.md", "starter.json", ".gitignore", ".editorconfig"}
-        missing = sorted(key for key in required if not (path / key).is_file())
-        record(name, "base_structure", "PASS" if not missing else "FAIL", f"missing={missing}")
-        try:
-            manifest = json.loads((path / "starter.json").read_text())
-            valid = manifest["id"] == name and set(manifest["commands"]) == REQUIRED_OPERATIONS
-            record(name, "command_contract", "PASS" if valid else "FAIL", str(manifest.get("commands")))
-        except Exception as error:
-            record(name, "command_contract", "FAIL", str(error))
-        for extension, load in [("*.json", json.loads), ("*.toml", tomllib.loads)]:
-            files = list(path.rglob(extension))
-            errors = []
-            for file in files:
-                try:
-                    load(file.read_text())
-                except Exception as exc:
-                    errors.append(f"{file.relative_to(path)}: {exc}")
-            record(name, f"syntax_{extension}", "PASS" if not errors else "FAIL", "; ".join(errors) or f"{len(files)} archivos")
-
-        if name in NODE:
-            try:
-                package = json.loads((path / "package.json").read_text())
-                valid = package["name"].startswith("starter-") and package["packageManager"].startswith("pnpm@")
-                record(name, "package_descriptor", "PASS" if valid else "FAIL", f"node={package.get('engines')}, scripts={sorted(package.get('scripts', {}))}")
-                if name in {"typescript", "react", "playwright", "puppeteer"}:
-                    node_type = package.get("devDependencies", {}).get("@types/node", "")
-                    record(name, "node_type_alignment", "PASS" if node_type.startswith("22.") else "FAIL", f"@types/node={node_type}; baseline node >=22.12")
-                record(name, "lockfile", "WARN" if not (path / "pnpm-lock.yaml").exists() else "PASS", "Sin pnpm-lock.yaml: instalación transitiva no certificada")
-            except Exception as exc:
-                record(name, "package_descriptor", "FAIL", str(exc))
-        if name == "python":
-            record(name, "lockfile", "WARN" if not (path / "uv.lock").exists() else "PASS", "Sin uv.lock: instalación transitiva no certificada")
-        if name == "java":
-            try:
-                ET.parse(path / "pom.xml")
-                record(name, "pom_xml", "PASS")
-            except Exception as exc:
-                record(name, "pom_xml", "FAIL", str(exc))
-            record(name, "maven_wrapper", "WARN", "Maven Wrapper pendiente de generar con Maven conectado")
-
-    def run(name: str, check: str, command: list[str], *, cwd: Path, timeout: int = 55, env: dict | None = None) -> None:
-        if not shutil.which(command[0]):
-            record(name, check, "SKIP", f"{command[0]} no instalado")
-            return
-        try:
-            out = subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            record(name, check, "FAIL", str(exc))
-            return
-        record(name, check, "PASS" if out.returncode == 0 else "FAIL", (out.stdout + '\n' + out.stderr)[-1200:])
-
-    py = templates / 'python'
-    run('python', 'compile', [sys.executable, '-m', 'compileall', '-q', 'src', 'tests'], cwd=py)
-    if importlib.util.find_spec('pytest') is not None:
-        run('python', 'pytest', [sys.executable, '-m', 'pytest', '-q', '-p', 'no:cacheprovider'], cwd=py)
+        entries = load_catalog(root)
+    except (OSError, TypeError, ValueError, KeyError) as error:
+        results.append(result("catalog", "catalog_json", "FAIL", str(error)))
+        entries = []
     else:
-        record('python', 'pytest', 'SKIP', 'pytest no importable en este interprete')
-    for tool in ('ruff', 'pyrefly'):
-        record('python', tool, 'SKIP' if not shutil.which(tool) else 'WARN', f"{tool} requiere validación en entorno con dependencias instaladas")
+        results.append(result("catalog", "catalog_json", "PASS", f"{len(entries)} starters"))
 
-    go = templates / 'go'
-    env = os.environ | {'GOPROXY': 'off', 'GOWORK': 'off', 'GOTOOLCHAIN': 'local'}
-    run('go', 'go_test', ['go', 'test', './...'], cwd=go, env=env)
-    run('go', 'go_vet', ['go', 'vet', './...'], cwd=go, env=env)
-    run('go', 'go_build', ['go', 'build', './...'], cwd=go, env=env)
-
-    java = templates / 'java'
-    if shutil.which('javac'):
-        with tempfile.TemporaryDirectory() as temp:
-            src = java / 'src/main/java/org/example/starter/App.java'
-            run('java', 'javac', ['javac', '-d', temp, str(src)], cwd=java)
-            cls = Path(temp) / 'org/example/starter/App.class'
-            if cls.exists():
-                run('java', 'java_main', ['java', '-cp', temp, 'org.example.starter.App'], cwd=java)
-    else:
-        record('java', 'javac', 'SKIP', 'JDK no instalado')
-    if not shutil.which('mvn'):
-        record('java', 'maven_junit_spotless', 'SKIP', 'Maven/plug-ins no disponibles; JUnit+Spotless sin certificar')
-
-    css = templates / 'css'
-    run('css', 'node_test', ['node', '--test', 'tests/styles.test.mjs'], cwd=css)
-    run('css', 'js_syntax', ['node', '--check', 'tests/styles.test.mjs'], cwd=css)
-    pw = templates / 'playwright'
-    run('playwright', 'fixture_syntax', ['node', '--check', 'src/server.mjs'], cwd=pw)
-    # Valida la respuesta HTTP local SIN descargar Playwright.
-    if shutil.which('node'):
+    for entry in entries:
+        name = entry["id"]
         try:
-            proc = subprocess.Popen(['node', 'src/server.mjs'], cwd=pw, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            try:
-                body = ''
-                for _ in range(25):
-                    if proc.poll() is not None: break
-                    try:
-                        with urllib.request.urlopen('http://127.0.0.1:4173/', timeout=.3) as response:
-                            body = response.read().decode()
-                            break
-                    except Exception:
-                        time.sleep(.1)
-                record('playwright', 'http_fixture', 'PASS' if '<h1>Prueba E2E</h1>' in body else 'FAIL', 'servidor HTML local real')
-            finally:
-                proc.terminate()
-                try: proc.communicate(timeout=2)
-                except subprocess.TimeoutExpired: proc.kill(); proc.communicate()
-        except Exception as exc:
-            record('playwright', 'http_fixture', 'FAIL', str(exc))
-    else:
-        record('playwright', 'http_fixture', 'SKIP', 'Node no instalado')
+            valid = audit_structure(root, entry, results)
+            if args.run_gates and valid:
+                run_gates(root, entry, results)
+            else:
+                reason = "Ejecutar con --run-gates" if valid else "Estructura inválida"
+                results.extend(result(name, gate, "SKIP", reason) for gate in ("setup", "check"))
+        except (OSError, TypeError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+            results.append(result(name, "audit", "FAIL", str(error)))
 
-    record('typescript', 'node_dependencies', 'SKIP', 'pnpm/TypeScript/Vitest/Biome no instalados en entorno offline')
-    record('react', 'node_dependencies', 'SKIP', 'pnpm/Vite/React/Vitest/Biome no instalados en entorno offline')
-    record('css', 'vite_biome', 'SKIP', 'pnpm/Vite/Biome no instalados en entorno offline')
-    record('playwright', 'browser_e2e', 'SKIP', 'Playwright y navegador Chromium no descargados')
-    record('puppeteer', 'browser_test', 'SKIP', 'Puppeteer/Chrome no instalados')
-    record('rust', 'cargo_clippy_tests', 'SKIP' if not shutil.which('cargo') else 'WARN', 'Toolchain Rust no certificada')
-    record('lua', 'lua_busted_stylua', 'SKIP' if not shutil.which('lua') else 'WARN', 'Toolchain Lua no certificada')
-
-    # No confundas 'no se pudo instalar TypeScript' con un error de sintaxis real.
-    ts_present = False
-    if shutil.which('node') and shutil.which('npm'):
-        try:
-            global_npm = subprocess.run(['npm', 'root', '-g'], capture_output=True, text=True, timeout=8)
-            ts_present = global_npm.returncode == 0 and (Path(global_npm.stdout.strip()) / 'typescript/package.json').is_file()
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    if ts_present:
-        run('catalog', 'typescript_syntax_only', ['node', 'tooling/ts_syntax.mjs'], cwd=root, timeout=45)
-    else:
-        record('catalog', 'typescript_syntax_only', 'SKIP', 'TypeScript global no instalado')
-    run('generator', 'unittest', [sys.executable, '-m', 'unittest', 'discover', '-s', 'tooling/tests', '-v'], cwd=root, timeout=70)
-    totals = {status: sum(item['status'] == status for item in results) for status in ('PASS', 'FAIL', 'WARN', 'SKIP')}
-    data = {'root': root.name, 'results': results, 'totals': totals, 'status': 'FAIL' if totals['FAIL'] else 'PARTIAL' if totals['WARN'] or totals['SKIP'] else 'PASS'}
+    counts = Counter(row["status"] for row in results)
+    totals = {status: counts[status] for status in ("PASS", "FAIL", "WARN", "SKIP")}
+    status = "FAIL" if counts["FAIL"] else "PARTIAL" if counts["SKIP"] or counts["WARN"] else "PASS"
+    report = {
+        "root": root.name,
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "environment": f"{platform.system()} {platform.machine()}",
+        "results": results,
+        "totals": totals,
+        "status": status,
+    }
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps({'totals': totals, 'status': data['status']}, ensure_ascii=False))
-    for item in results:
-        if item['status'] == 'FAIL':
-            print(f"FAIL {item['template']} {item['check']} {item['detail']}")
-    return 1 if totals['FAIL'] else 0
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    print(json.dumps({"totals": totals, "status": status}, ensure_ascii=False))
+    for row in results:
+        if row["status"] == "FAIL":
+            print(f"FAIL {row['template']} {row['check']} {row['detail']}")
+    return int(status == "FAIL" or (args.run_gates and status != "PASS"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

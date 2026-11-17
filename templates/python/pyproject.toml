@@ -1,11 +1,17 @@
 [project]
-name = "python-config-kit-project"
+name = "starter-python"
 version = "0.1.0"
-description = "Proyecto mínimo generado desde el config kit Python"
+description = "Kit mínimo de biblioteca Python"
+readme = "README.md"
 requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
-# uv se declara aquí para que `uv run` use la versión fijada del gestor, no la del sistema.
+# Pin uv alongside the development tools it runs.
 dev = [
   "uv==0.13.9",
   "ruff==0.17.5",
@@ -14,8 +20,8 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py312"
 line-length = 100
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
