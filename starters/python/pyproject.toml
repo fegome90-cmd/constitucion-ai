@@ -1,0 +1,42 @@
+[project]
+name = "starter-python"
+version = "0.1.0"
+description = "Kit mínimo de biblioteca Python"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+# Fuente de verdad: templates/python/pyproject.toml (ADR-0004). No editar acá.
+dev = [
+  "uv==0.13.9",
+  "ruff==0.17.5",
+  "mypy==2.4.1",
+  "pytest==9.2.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

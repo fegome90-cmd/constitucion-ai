@@ -1,0 +1,15 @@
+{
+  "id": "react",
+  "runtime": "Node.js >=22.12 + pnpm 12",
+  "commands": {
+    "setup": "pnpm install",
+    "format": "pnpm exec biome format --write .",
+    "lint": "pnpm exec biome check .",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "test": "pnpm test",
+    "build": "pnpm build",
+    "dev": "pnpm dev",
+    "check": "pnpm run check"
+  },
+  "notes": ["Vite + React sin componentes UI, routing ni state managers."]
+}

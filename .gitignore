@@ -57,3 +57,10 @@ docs/reviews/
 
 # Temporary exploration workspace
 explore/
+
+# Starter dependencies and build artifacts
+node_modules/
+target/
+playwright-report/
+test-results/
+

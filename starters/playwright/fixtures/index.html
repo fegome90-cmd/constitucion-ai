@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+  <head><meta charset="UTF-8" /><title>Contador</title></head>
+  <body>
+    <h1>Prueba E2E</h1>
+    <output id="count">0</output>
+    <button type="button" id="increment">Incrementar</button>
+    <script>
+      const count = document.querySelector("#count");
+      document.querySelector("#increment").addEventListener("click", () => {
+        count.textContent = String(Number(count.textContent) + 1);
+      });
+    </script>
+  </body>
+</html>

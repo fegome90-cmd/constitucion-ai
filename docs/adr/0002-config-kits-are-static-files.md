@@ -1,6 +1,6 @@
 # Config kits como archivos estáticos, no como scaffolder
 
-Status: accepted
+Status: superseded by ADR-0005
 
 Cada config kit es un conjunto de archivos reales y versionados bajo `templates/<lenguaje>/`, con un script bash delgado (`apply-kit.sh <lang> <destino>`) que copia los archivos y corre el smoke test. Se descartó copier/cookiecutter y cualquier generador con estado.
 

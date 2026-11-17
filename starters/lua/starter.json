@@ -1,0 +1,17 @@
+{
+  "id": "lua",
+  "runtime": "Lua 5.4 + LuaRocks",
+  "commands": {
+    "setup": "luarocks install busted",
+    "format": "stylua src spec",
+    "lint": "stylua --check src spec",
+    "typecheck": null,
+    "test": "busted",
+    "build": null,
+    "dev": "lua src/main.lua",
+    "check": "stylua --check src spec && busted"
+  },
+  "notes": [
+    "StyLua y LuaLS se instalan aparte. Compatibilidad Lua 5.4 no 5.5."
+  ]
+}

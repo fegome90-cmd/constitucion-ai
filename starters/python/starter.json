@@ -1,0 +1,18 @@
+{
+  "id": "python",
+  "runtime": "Python >=3.12 + uv",
+  "commands": {
+    "setup": "uv sync --frozen",
+    "format": "uv run ruff format .",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run mypy src",
+    "test": "uv run pytest",
+    "build": "uv build",
+    "dev": "uv run python -m starter_python",
+    "check": "uv run ruff format --check . && uv run ruff check . && uv run mypy src && uv run pytest && uv build"
+  },
+  "notes": [
+    "Los pins y la configuración de herramientas vienen de templates/python (ADR-0004); no se definen dos veces.",
+    "El lockfile uv.lock se genera con uv lock y se versiona; setup lo consume con --frozen."
+  ]
+}
