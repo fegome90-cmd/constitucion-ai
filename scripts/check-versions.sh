@@ -26,6 +26,7 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "${SCRIPT_DIR}")"
+TEMPLATES_DIR="${CONFIG_KITS_DIR:-${REPO_ROOT}/templates}"
 
 authoritative_version() {
   local name="${1}"
@@ -45,19 +46,55 @@ while IFS= read -r line; do
   if [[ "${line}" =~ \"([a-zA-Z0-9_-]+)==([0-9][0-9A-Za-z.\-]*)\" ]]; then
     pinned+=("${BASH_REMATCH[1]}|${BASH_REMATCH[2]}")
   fi
-done < "${REPO_ROOT}/templates/python/pyproject.toml"
+done < "${TEMPLATES_DIR}/python/pyproject.toml"
 
 while IFS= read -r line; do
   if [[ "${line}" =~ ^([a-zA-Z0-9_-]+)==(.+)$ ]]; then
     pinned+=("${BASH_REMATCH[1]}|${BASH_REMATCH[2]}")
   fi
-done < "${REPO_ROOT}/templates/_common/requirements-dev.txt"
+done < "${TEMPLATES_DIR}/_common/requirements-dev.txt"
 
 npm_pin="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["devDependencies"]["markdownlint-cli2"])' \
-  "${REPO_ROOT}/templates/_common/package.json")"
+  "${TEMPLATES_DIR}/_common/package.json")"
 pinned+=("markdownlint-cli2|${npm_pin}")
 
 drift=0
+
+echo "=== Pins exactos ==="
+inexact_report="$(python3 - "${TEMPLATES_DIR}" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+root = pathlib.Path(sys.argv[1])
+bad = []
+
+pyproject = (root / "python/pyproject.toml").read_text()
+for match in re.finditer(r'"([a-zA-Z0-9_-]+)\s*(>=|<=|~=|!=)\s*([^"\s]+)"', pyproject):
+    bad.append(f"PIN NO EXACTO {match.group(1)}{match.group(2)}{match.group(3)}")
+
+requirements = (root / "_common/requirements-dev.txt").read_text().splitlines()
+for line in requirements:
+    match = re.match(r"\s*([a-zA-Z0-9_-]+)\s*(>=|<=|~=|!=)\s*(\S+)", line)
+    if match:
+        bad.append(f"PIN NO EXACTO {match.group(1)}{match.group(2)}{match.group(3)}")
+
+package = json.loads((root / "_common/package.json").read_text())
+for name, spec in package.get("devDependencies", {}).items():
+    if not re.fullmatch(r"\d+\.\d+\.\d+", spec):
+        bad.append(f"PIN NO EXACTO {name}{spec}")
+
+print("\n".join(bad))
+PY
+)"
+
+if [[ -n "${inexact_report}" ]]; then
+  echo "${inexact_report}"
+  drift=1
+else
+  echo "OK: todos los pins son exactos"
+fi
 
 echo "=== Pins de config kits ==="
 for entry in "${pinned[@]}"; do
@@ -76,6 +113,8 @@ for entry in "${pinned[@]}"; do
 done
 
 echo "=== pre-commit vs lockfile ==="
+echo "Nota: los pins del kit se resuelven desde el registry; los revs de pre-commit se alinean con uv.lock."
+echo "Fuentes distintas por decisión: pueden diferir sin ser drift."
 precommit_report="$(python3 - "${REPO_ROOT}" <<'PY'
 import pathlib
 import re

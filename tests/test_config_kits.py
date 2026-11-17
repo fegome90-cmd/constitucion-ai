@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -9,15 +12,37 @@ REPO_ROOT = Path(__file__).parent.parent
 TEMPLATES = REPO_ROOT / "templates"
 APPLY_KIT = REPO_ROOT / "scripts" / "apply-kit.sh"
 CHECK_VERSIONS = REPO_ROOT / "scripts" / "check-versions.sh"
+MATCHING_VERSIONS = {
+    "uv": "0.13.9",
+    "ruff": "0.17.5",
+    "mypy": "2.4.1",
+    "pytest": "9.2.0",
+    "yamllint": "1.38.0",
+    "shellcheck-py": "0.11.0.1",
+    "codespell": "2.4.3",
+    "markdownlint-cli2": "0.24.1",
+}
 
 
-def run_check_versions(registry_file: Path) -> subprocess.CompletedProcess[str]:
+def write_registry(destination: Path, **overrides: str) -> Path:
+    registry = destination / "registry.json"
+    registry.write_text(json.dumps({**MATCHING_VERSIONS, **overrides}))
+    return registry
+
+
+def run_check_versions(
+    registry_file: Path, templates_dir: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = None
+    if templates_dir is not None:
+        env = {**os.environ, "CONFIG_KITS_DIR": str(templates_dir)}
     return subprocess.run(
         ["bash", str(CHECK_VERSIONS), "--registry-file", str(registry_file)],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
@@ -88,12 +113,7 @@ def test_apply_kit_rejects_an_unknown_kit(tmp_path: Path) -> None:
 
 def test_check_versions_reports_a_stale_kit_pin(tmp_path: Path) -> None:
     """The verifier names the tool and the authoritative version when a pin has drifted."""
-    registry = tmp_path / "registry.json"
-    registry.write_text(
-        '{"uv": "0.13.9", "ruff": "0.99.0", "mypy": "2.4.1", "pytest": "9.2.0", '
-        '"yamllint": "1.38.0", "shellcheck-py": "0.11.0.1", "codespell": "2.4.3", '
-        '"markdownlint-cli2": "0.24.1"}'
-    )
+    registry = write_registry(tmp_path, ruff="0.99.0")
 
     result = run_check_versions(registry)
 
@@ -104,14 +124,22 @@ def test_check_versions_reports_a_stale_kit_pin(tmp_path: Path) -> None:
 
 def test_precommit_revs_are_aligned_with_the_lockfile(tmp_path: Path) -> None:
     """The repo's pre-commit revs no longer diverge from the resolved lock versions."""
-    registry = tmp_path / "registry.json"
-    registry.write_text(
-        '{"uv": "0.13.9", "ruff": "0.17.5", "mypy": "2.4.1", "pytest": "9.2.0", '
-        '"yamllint": "1.38.0", "shellcheck-py": "0.11.0.1", "codespell": "2.4.3", '
-        '"markdownlint-cli2": "0.24.1"}'
-    )
+    registry = write_registry(tmp_path)
 
     result = run_check_versions(registry)
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "PRE-COMMIT DRIFT" not in result.stdout
+
+
+def test_check_versions_rejects_a_minimum_instead_of_an_exact_pin(tmp_path: Path) -> None:
+    """A reverted range pin fails the verifier instead of being silently skipped."""
+    templates = tmp_path / "templates"
+    shutil.copytree(TEMPLATES, templates)
+    pyproject = templates / "python" / "pyproject.toml"
+    pyproject.write_text(pyproject.read_text().replace("ruff==0.17.5", "ruff>=0.17.5"))
+
+    result = run_check_versions(write_registry(tmp_path), templates_dir=templates)
+
+    assert result.returncode == 1
+    assert "PIN NO EXACTO ruff>=0.17.5" in result.stdout

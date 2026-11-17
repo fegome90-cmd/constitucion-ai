@@ -13,6 +13,10 @@ Herramientas transversales que no pertenecen a ningún lenguaje. Se aplica junto
 
 La evidencia de adopción y mantenimiento está en `EVIDENCE.md`.
 
+## Diferencias con la configuración de este repo
+
+Estos archivos se extrajeron de la configuración del repo, con dos divergencias deliberadas: no se copia la lista de palabras en español de `ignore-words-list` ni el skip de `_ctx/`, porque ambos son particulares de este proyecto y no transversales. Cualquier otra regla sí se conserva.
+
 ## Uso
 
 ```bash

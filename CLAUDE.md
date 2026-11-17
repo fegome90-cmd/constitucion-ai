@@ -20,7 +20,14 @@ constitucion-ai/
 ├── archive/
 │   └── v0.7-AGENTIC-CONSTITUTION.md  # Versiones anteriores
 ├── docs/
+│   ├── adr/                       # Decisiones difíciles de revertir
+│   ├── agents/                    # Configuración de skills y tracker
 │   └── mandate-roles-and-jurisdiction.md
+├── templates/                     # Config kits por lenguaje
+├── scripts/
+│   ├── apply-kit.sh               # Aplica un kit y corre el smoke test
+│   └── check-versions.sh          # Re-resuelve pins y detecta drift
+├── GLOSSARY.md                    # Vocabulario canónico
 └── CLAUDE.md                      # Este archivo
 ```
 
@@ -33,7 +40,7 @@ Para usar esta constitución en un proyecto:
    ```markdown
    # Gobernanza
    Este proyecto opera bajo la Constitución de Código Agéntico.
-   Ver: https://github.com/felipe/constitucion-ai
+   Ver: https://github.com/fegome90-cmd/constitucion-ai
    ```
 
 2. **O incluir directamente:**
@@ -42,7 +49,7 @@ Para usar esta constitución en un proyecto:
 ## Principios Clave
 
 | Ley | Propósito |
-|-----|-----------|
+| ----- | ----------- |
 | Ley I | Cambio legítimo - intención explícita, planificación proporcional |
 | Ley II | Lectura previa y no duplicación |
 | Ley III | Arquitectura base y regla de scope |
@@ -70,7 +77,7 @@ Para usar esta constitución en un proyecto:
 ### Roles y funciones autorizadas
 
 | Rol / Función | Descripción |
-|---------------|-------------|
+| --------------- | ------------- |
 | **Maintainer** | Mantenedores del repositorio con acceso de escritura directo |
 | **Security Lead** | Responsable de revisar cambios con impacto en seguridad |
 | **Release Manager** | Responsable de aprobar y publicar nuevas versiones |
@@ -78,7 +85,7 @@ Para usar esta constitución en un proyecto:
 ### Niveles de autoridad por tipo de acción
 
 | Tipo de acción | Superficie | Autoridad mínima requerida | Umbral de escalación |
-|----------------|------------|---------------------------|----------------------|
+| ---------------- | ------------ | --------------------------- | ---------------------- |
 | Cambios de documentación | `docs/`, `CLAUDE.md` | Maintainer (1 aprobación en PR) | — |
 | Enmiendas constitucionales (parche) | `constitution/` | Maintainer (1 aprobación en PR) | — |
 | Enmiendas constitucionales (menor/mayor) | `constitution/` | Maintainer (2 aprobaciones en PR) | Security Lead si impacta seguridad |

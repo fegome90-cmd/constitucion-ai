@@ -5,6 +5,7 @@ description = "Proyecto mínimo generado desde el config kit Python"
 requires-python = ">=3.12"
 
 [dependency-groups]
+# uv se declara aquí para que `uv run` use la versión fijada del gestor, no la del sistema.
 dev = [
   "uv==0.13.9",
   "ruff==0.17.5",
