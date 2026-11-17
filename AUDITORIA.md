@@ -31,7 +31,7 @@ Suite del repo: 63 tests verdes. ruff, mypy, shellcheck y markdownlint sin halla
 
 ## Advertencias y excepciones a la evidence bar
 
-- **Lua**: busted (★1.649), StyLua (★2.340), LuaLS (★4.412) y LuaRocks (★3.753) no alcanzan ≥5k estrellas y no hay métrica de descargas verificable. Sus gates pasan, pero **no están certificados por la barra**. Requiere decisión del maintainer.
+- **Lua**: busted (★1.649), StyLua (★2.340), LuaLS (★4.412) y LuaRocks (★3.753) no alcanzan ≥5k estrellas y no hay métrica de descargas verificable. Sus gates pasan, pero **no están certificados por la barra**. El maintainer aceptó la excepción el 17 de noviembre de 2026: se conservan con estado `NO PASA` explícito en `EVIDENCE.md`.
 - **Java**: maven-compiler-plugin (★265) y maven-surefire-plugin (★466) están por debajo de la barra; se conservan por ser parte del build estándar de Maven. Maven Central no expone descargas.
 - **Pins exactos detrás del latest**: `@types/node` 22.20.5 (alineado con Node 22), jsdom 27.0.0, Testing Library 16.3.0 y puppeteer 25.17.0. El verificador los reporta como AVISO, no como FAIL.
 - **Playwright/Puppeteer**: los navegadores se instalaron y los E2E pasaron, pero no se versionan binarios de navegador: `setup` los descarga.
@@ -44,4 +44,4 @@ Suite del repo: 63 tests verdes. ruff, mypy, shellcheck y markdownlint sin halla
 
 ## Cierre
 
-Para pass completo: resolver la excepción de Lua (o aceptarla explícitamente) y volver a generar este informe desde los gates ejecutados.
+La excepción de Lua y de los plugins Maven quedó aceptada y documentada. El dictamen permanece **PARCIAL** por decisión, no por gates pendientes: para pass completo habría que sustituir esas herramientas por alternativas que sí cumplan la barra.
