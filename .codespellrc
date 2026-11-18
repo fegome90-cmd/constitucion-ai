@@ -1,0 +1,3 @@
+[codespell]
+skip = .git,.venv,archive,__pycache__,*.lock,_ctx
+ignore-words-list = constitucion,requiere,ser,contener,inicial,funcional,identificable,comando,comandos,posible,posible,fase,fases,autor,relevante,falso,aplicable,formen,controles,pase,aspectos,diagrama,responsable,statics,visibles,componentes,potencial,accesible,rige,imposible,cliente,asume,referencial,historial,previos,oficial

@@ -1,0 +1,6 @@
+python: Python 3.13.5
+node: v22.16.0
+go: go version go1.23.2 linux/amd64
+java: openjdk version "21.0.12.1" 2026-08-18
+tsc_global: Version 5.8.3
+uv: uv 0.10.0

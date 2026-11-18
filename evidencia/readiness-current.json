@@ -1,0 +1,504 @@
+{
+  "root": "constitucion-ai",
+  "generated_at": "2026-11-18T16:55:58+00:00",
+  "environment": "Darwin arm64",
+  "results": [
+    {
+      "template": "catalog",
+      "check": "catalog_json",
+      "status": "PASS",
+      "detail": "10 starters"
+    },
+    {
+      "template": "css",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "css",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "css",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/css/package.json"
+    },
+    {
+      "template": "css",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml"
+    },
+    {
+      "template": "css",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "css",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "✓ Lockfile passes supply-chain policies (verified 1d ago)\nLockfile is up to date, resolution step is skipped\nPackages: +18\n++++++++++++++++++\nProgress: resolved 18, reused 18, downloaded 0, added 18, done\n\ndevDependencies:\n+ @biomejs/biome 2.6.8\n+ vite 8.3.8\n\nDone in 160ms using pnpm v12.18.0",
+      "command": "pnpm install --frozen-lockfile --ignore-scripts",
+      "exit_code": 0
+    },
+    {
+      "template": "css",
+      "check": "check",
+      "status": "PASS",
+      "detail": "✔ tokens y layers presentes (0.2965ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 42.540541\nvite v8.3.8 building client environment for production...\ntransforming...\n✓ 3 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                 0.45 kB │ gzip: 0.30 kB\ndist/assets/index-Dbz6X2NE.css  0.49 kB │ gzip: 0.32 kB\n\n✓ built in 292ms\n$ pnpm run lint && pnpm run test && pnpm run build\n$ biome check src/ tests/\nChecked 2 files in 7ms. No fixes applied.\n$ node --test tests/*.test.mjs\n$ vite build",
+      "command": "pnpm run check",
+      "exit_code": 0
+    },
+    {
+      "template": "css",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml 1f85b8ad290eec7b201739d7f7b36722b2a22e8b0ee638201bc3bf0ea96a7af0"
+    },
+    {
+      "template": "go",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "go",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "go",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/go/go.mod"
+    },
+    {
+      "template": "go",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "go",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "go: no module dependencies to download",
+      "command": "go mod download",
+      "exit_code": 0
+    },
+    {
+      "template": "go",
+      "check": "check",
+      "status": "PASS",
+      "detail": "?   \texample.com/starter-go/cmd/starter\t[no test files]\nok  \texample.com/starter-go/greet\t0.216s",
+      "command": "go vet ./... && go test ./... && go build ./...",
+      "exit_code": 0
+    },
+    {
+      "template": "java",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "java",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "java",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/java/pom.xml"
+    },
+    {
+      "template": "java",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "java",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "",
+      "command": "mvn -q -DskipTests package",
+      "exit_code": 0
+    },
+    {
+      "template": "java",
+      "check": "check",
+      "status": "PASS",
+      "detail": "[INFO] Scanning for projects...\n[INFO] Loaded 24538 auto-discovered prefixes for remote repository central (prefixes-central.txt)\n[INFO] \n[INFO] ----------------------< org.example:starter-java >----------------------\n[INFO] Building starter-java 0.1.0\n[INFO]   from pom.xml\n[INFO] --------------------------------[ jar ]---------------------------------\n[INFO] \n[INFO] --- spotless:3.10.3:check (default-cli) @ starter-java ---\n[INFO] Index file does not exist. Fallback to an empty index\n[INFO] Spotless.Java is keeping 2 files clean - 0 needs changes to be clean, 2 were already clean, 0 were skipped because caching determined they were already clean\n[INFO] \n[INFO] --- resources:3.5.0:resources (default-resources) @ starter-java ---\n[INFO] skip non existing resourceDirectory ./src/main/resources\n[INFO] \n[INFO] --- compiler:3.14.1:compile (default-compile) @ starter-java ---\n[INFO] Nothing to compile - all classes are up to date.\n[INFO] \n[INFO] --- resources:3.5.0:testResources (default-testResources) @ starter-java ---\n[INFO] skip non existing resourceDirectory ./src/test/resources\n[INFO] \n[INFO] --- compiler:3.14.1:testCompile (default-testCompile) @ starter-java ---\n[INFO] Nothing to compile - all classes are up to date.\n[INFO] \n[INFO] --- surefire:3.5.4:test (default-test) @ starter-java ---\n[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider\n[INFO] \n[INFO] -------------------------------------------------------\n[INFO]  T E S T S\n[INFO] -------------------------------------------------------\n[INFO] Running org.example.starter.AppTest\n[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s -- in org.example.starter.AppTest\n[INFO] \n[INFO] Results:\n[INFO] \n[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n[INFO] \n[INFO] \n[INFO] --- jar:3.5.1:jar (default-jar) @ starter-java ---\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD SUCCESS\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time:  1.084 s\n[INFO] Finished at: 2026-11-18T13:55:32-03:00\n[INFO] ------------------------------------------------------------------------\nWARNING: A terminally deprecated method in sun.misc.Unsafe has been called\nWARNING: sun.misc.Unsafe::staticFieldBase has been called by com.diffplug.spotless.java.ModuleHelper (file:$HOME/.m2/repository/com/diffplug/spotless/spotless-lib/4.10.3/spotless-lib-4.10.3.jar)\nWARNING: Please consider reporting this to the maintainers of class com.diffplug.spotless.java.ModuleHelper\nWARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release",
+      "command": "mvn spotless:check verify",
+      "exit_code": 0
+    },
+    {
+      "template": "lua",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "lua",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "lua",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/lua/rocks.txt"
+    },
+    {
+      "template": "lua",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "lua",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "/share/lua/5.4/busted/languages/th.lua)\n\tbusted.languages.ua ($HOME/.luarocks/share/lua/5.4/busted/languages/ua.lua)\n\tbusted.languages.zh ($HOME/.luarocks/share/lua/5.4/busted/languages/zh.lua)\n\tbusted.luajit ($HOME/.luarocks/share/lua/5.4/busted/luajit.lua)\n\tbusted.modules.cli ($HOME/.luarocks/share/lua/5.4/busted/modules/cli.lua)\n\tbusted.modules.configuration_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/configuration_loader.lua)\n\tbusted.modules.files.fennel ($HOME/.luarocks/share/lua/5.4/busted/modules/files/fennel.lua)\n\tbusted.modules.files.lua ($HOME/.luarocks/share/lua/5.4/busted/modules/files/lua.lua)\n\tbusted.modules.files.moonscript ($HOME/.luarocks/share/lua/5.4/busted/modules/files/moonscript.lua)\n\tbusted.modules.files.terra ($HOME/.luarocks/share/lua/5.4/busted/modules/files/terra.lua)\n\tbusted.modules.filter_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/filter_loader.lua)\n\tbusted.modules.helper_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/helper_loader.lua)\n\tbusted.modules.luacov ($HOME/.luarocks/share/lua/5.4/busted/modules/luacov.lua)\n\tbusted.modules.output_handler_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/output_handler_loader.lua)\n\tbusted.modules.standalone_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/standalone_loader.lua)\n\tbusted.modules.test_file_loader ($HOME/.luarocks/share/lua/5.4/busted/modules/test_file_loader.lua)\n\tbusted.options ($HOME/.luarocks/share/lua/5.4/busted/options.lua)\n\tbusted.outputHandlers.TAP ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/TAP.lua)\n\tbusted.outputHandlers.base ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/base.lua)\n\tbusted.outputHandlers.gtest ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/gtest.lua)\n\tbusted.outputHandlers.json ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/json.lua)\n\tbusted.outputHandlers.junit ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/junit.lua)\n\tbusted.outputHandlers.plainTerminal ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/plainTerminal.lua)\n\tbusted.outputHandlers.sound ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/sound.lua)\n\tbusted.outputHandlers.utfTerminal ($HOME/.luarocks/share/lua/5.4/busted/outputHandlers/utfTerminal.lua)\n\tbusted.runner ($HOME/.luarocks/share/lua/5.4/busted/runner.lua)\n\tbusted.status ($HOME/.luarocks/share/lua/5.4/busted/status.lua)\n\tbusted.utils ($HOME/.luarocks/share/lua/5.4/busted/utils.lua)\n\nDepends on:\n\tlua >= 5.1 (using 5.4-1)\n\tlua_cliargs >= 3.0 (using 3.0.2-1)\n\tluasystem >= 0.2.0 (using 0.7.1-1)\n\tdkjson >= 2.1.0 (using 2.11-1)\n\tsay >= 1.4-1 (using 1.4.1-3)\n\tluassert >= 1.9.0-1 (using 1.9.0-1)\n\tlua-term >= 0.1 (using 0.8-1)\n\tpenlight >= 1.15.0 (using 1.15.0-1)\n\tmediator_lua >= 1.1.1 (using 1.1.2-0)\n\nIndirectly pulling:\n\tdkjson (using 2.11-1)\n\tlua-term (using 0.8-1)\n\tlua_cliargs (using 3.0.2-1)\n\tluafilesystem (using 1.9.0-1)\n\tluassert (using 1.9.0-1)\n\tluasystem (using 0.7.1-1)\n\tmediator_lua (using 1.1.2-0)\n\tpenlight (using 1.15.0-1)\n\tsay (using 1.4.1-3)",
+      "command": "version=$(sed -n 's/^busted==//p' rocks.txt) && (luarocks --lua-version=5.4 --local show busted \"${version:?missing busted pin}\" || luarocks --lua-version=5.4 --local install busted \"$version\")",
+      "exit_code": 0
+    },
+    {
+      "template": "lua",
+      "check": "check",
+      "status": "PASS",
+      "detail": "+\n1 success / 0 failures / 0 errors / 0 pending : 0.000782 seconds",
+      "command": "stylua --check src spec && busted",
+      "exit_code": 0
+    },
+    {
+      "template": "playwright",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "playwright",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "playwright",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/playwright/package.json"
+    },
+    {
+      "template": "playwright",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml"
+    },
+    {
+      "template": "playwright",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "playwright",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "✓ Lockfile passes supply-chain policies (verified 1d ago)\nLockfile is up to date, resolution step is skipped\nPackages: +9\n+++++++++\nProgress: resolved 9, reused 9, downloaded 0, added 9, done\n\ndevDependencies:\n+ @biomejs/biome 2.6.8\n+ @playwright/test 1.65.1\n+ @types/node 22.20.5\n+ typescript 7.0.2\n\nDone in 76ms using pnpm v12.18.0",
+      "command": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec playwright install chromium",
+      "exit_code": 0
+    },
+    {
+      "template": "playwright",
+      "check": "check",
+      "status": "PASS",
+      "detail": "Running 1 test using 1 worker\n·\n  1 passed (871ms)\n$ biome check .\nChecked 10 files in 8ms. No fixes applied.\n$ tsc --noEmit\n$ playwright test",
+      "command": "pnpm run lint && pnpm run typecheck && pnpm run test",
+      "exit_code": 0
+    },
+    {
+      "template": "playwright",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml 973ca819f9de1b0d5f8e3571027b1887794e7f052fcecee46f42c7b3451b1bfd"
+    },
+    {
+      "template": "puppeteer",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "puppeteer",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "puppeteer",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/puppeteer/package.json"
+    },
+    {
+      "template": "puppeteer",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml"
+    },
+    {
+      "template": "puppeteer",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "puppeteer",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "✓ Lockfile passes supply-chain policies (verified 1d ago)\nLockfile is up to date, resolution step is skipped\nPackages are cloned from the content-addressable store to the virtual store.\n  Content-addressable store is at: $HOME/Library/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nPackages: +36\n++++++++++++++++++++++++++++++++++++\nProgress: resolved 36, reused 36, downloaded 0, added 36, done\n\ndependencies:\n+ puppeteer 25.17.0\n\ndevDependencies:\n+ @biomejs/biome 2.6.8\n+ @types/node 22.20.5\n+ tsx 4.23.15\n+ typescript 7.0.2\n\nDone in 250ms using pnpm v12.18.0\nchrome@157.0.8103.50 $HOME/.cache/puppeteer/chrome/mac_arm-157.0.8103.50/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+      "command": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec puppeteer browsers install chrome",
+      "exit_code": 0
+    },
+    {
+      "template": "puppeteer",
+      "check": "check",
+      "status": "PASS",
+      "detail": "✔ normaliza título (0.322ms)\n✔ rechaza título vacío (0.094917ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 355.243375\nAutomatización lista\n$ pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run start\n$ biome check .\nChecked 10 files in 10ms. No fixes applied.\n$ tsc --noEmit\n$ tsx --test tests/*.test.ts\n$ tsc -p tsconfig.build.json\n$ node dist/main.js",
+      "command": "pnpm run check",
+      "exit_code": 0
+    },
+    {
+      "template": "puppeteer",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml 1b72bbdc4e5a4b62b9313b76b93ee9f219bb577353d04875e4b7a4ecd85ca3c4"
+    },
+    {
+      "template": "python",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "python",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "python",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/python/pyproject.toml"
+    },
+    {
+      "template": "python",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "uv.lock"
+    },
+    {
+      "template": "python",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "python",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "Using CPython 3.13.11\nCreating virtual environment at: .venv\n   Building starter-python @ file://.\n      Built starter-python @ file://.\nPrepared 1 package in 263ms\nInstalled 14 packages in 39ms\n + ast-serialize==0.13.1\n + iniconfig==2.3.1\n + librt==0.16.0\n + mypy==2.4.1\n + mypy-extensions==1.2.0\n + packaging==26.3\n + pathspec==1.1.1\n + pluggy==1.7.0\n + pygments==2.21.0\n + pytest==9.2.0\n + ruff==0.17.5\n + starter-python==0.1.0 (from file://.)\n + typing-extensions==4.16.0\n + uv==0.13.9",
+      "command": "uv sync --frozen",
+      "exit_code": 0
+    },
+    {
+      "template": "python",
+      "check": "check",
+      "status": "PASS",
+      "detail": "5 files already formatted\nAll checks passed!\nSuccess: no issues found in 2 source files\n============================= test session starts ==============================\nplatform darwin -- Python 3.13.11, pytest-9.2.0, pluggy-1.7.0\nrootdir: .\nconfigfile: pyproject.toml\ntestpaths: tests\ncollected 2 items\n\ntests/test_greet.py ..                                                   [100%]\n\n============================== 2 passed in 0.01s ===============================\nBuilding source distribution...\nBuilding wheel from source distribution...\nSuccessfully built dist/starter_python-0.1.0.tar.gz\nSuccessfully built dist/starter_python-0.1.0-py3-none-any.whl",
+      "command": "uv run ruff format --check . && uv run ruff check . && uv run mypy src && uv run pytest && uv build",
+      "exit_code": 0
+    },
+    {
+      "template": "python",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "uv.lock f2d629354f21f01794ed223c93495c03d77c6b16131dd0438ff06a8cdc48f36a"
+    },
+    {
+      "template": "react",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "react",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "react",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/react/package.json"
+    },
+    {
+      "template": "react",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml"
+    },
+    {
+      "template": "react",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "react",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "✓ Lockfile passes supply-chain policies (verified 1d ago)\nLockfile is up to date, resolution step is skipped\nPackages: +110\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\nProgress: resolved 110, reused 110, downloaded 0, added 110, done\n\ndependencies:\n+ react 19.3.1\n+ react-dom 19.3.1\n\ndevDependencies:\n+ @biomejs/biome 2.6.8\n+ @testing-library/react 16.3.0\n+ @types/node 22.20.5\n+ @types/react 19.3.0\n+ @types/react-dom 19.3.0\n+ @vitejs/plugin-react 6.3.0\n+ jsdom 27.0.0\n+ typescript 7.0.2\n+ vite 8.3.8\n+ vitest 5.1.0\n\nDone in 159ms using pnpm v12.18.0",
+      "command": "pnpm install --frozen-lockfile --ignore-scripts",
+      "exit_code": 0
+    },
+    {
+      "template": "react",
+      "check": "check",
+      "status": "PASS",
+      "detail": "RUN  v5.1.0 .\n\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  13:55:51\n   Duration  520ms (environment 71%, import 16%, tests 9%, transform 3%)\n\nvite v8.3.8 building client environment for production...\ntransforming...\n✓ 16 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.39 kB │ gzip:  0.26 kB\ndist/assets/index-CxcvRam1.css    0.33 kB │ gzip:  0.21 kB\ndist/assets/index-CtSTxA-N.js   219.75 kB │ gzip: 68.71 kB\n\n✓ built in 332ms\n$ pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build\n$ biome check .\nChecked 13 files in 10ms. No fixes applied.\n$ tsc --noEmit\n$ vitest run\n$ tsc --noEmit && vite build",
+      "command": "pnpm run check",
+      "exit_code": 0
+    },
+    {
+      "template": "react",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml f03c1519d96d719967d51e3a8b01be7f8ac8115895e86ab36acaa131ebcefac9"
+    },
+    {
+      "template": "rust",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "rust",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "rust",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/rust/rust-toolchain.toml"
+    },
+    {
+      "template": "rust",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "Cargo.lock"
+    },
+    {
+      "template": "rust",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "rust",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "",
+      "command": "cargo fetch --locked",
+      "exit_code": 0
+    },
+    {
+      "template": "rust",
+      "check": "check",
+      "status": "PASS",
+      "detail": "running 1 test\ntest tests::greets ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n    Checking starter-rust v0.1.0 (.)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s\n   Compiling starter-rust v0.1.0 (.)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.30s\n     Running unittests src/lib.rs (target/debug/build/starter-rust/8846261b64204504/out/starter_rust-8846261b64204504)\n     Running unittests src/main.rs (target/debug/build/starter-rust/a2a05ff421de436a/out/starter_rust-a2a05ff421de436a)\n   Doc-tests starter_rust\n   Compiling starter-rust v0.1.0 (.)\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.13s",
+      "command": "cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test --locked && cargo build --locked",
+      "exit_code": 0
+    },
+    {
+      "template": "rust",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "Cargo.lock e7a20ccc0391985a263dc7941a3faf28bce770af99fff5e0e429c3fd7fac4c0a"
+    },
+    {
+      "template": "typescript",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "typescript",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "typescript",
+      "check": "pin_source",
+      "status": "PASS",
+      "detail": "templates/typescript/package.json"
+    },
+    {
+      "template": "typescript",
+      "check": "lockfile",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml"
+    },
+    {
+      "template": "typescript",
+      "check": "config_sync",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "typescript",
+      "check": "setup",
+      "status": "PASS",
+      "detail": "✓ Lockfile passes supply-chain policies (verified 1d ago)\nLockfile is up to date, resolution step is skipped\nPackages are cloned from the content-addressable store to the virtual store.\n  Content-addressable store is at: $HOME/Library/pnpm/store/v11\n  Virtual store is at:             node_modules/.pnpm\nPackages: +45\n+++++++++++++++++++++++++++++++++++++++++++++\nProgress: resolved 45, reused 45, downloaded 0, added 45, done\n\ndevDependencies:\n+ @biomejs/biome 2.6.8\n+ @types/node 22.20.5\n+ tsx 4.23.15\n+ typescript 7.0.2\n+ vite 8.3.8\n+ vitest 5.1.0\n\nDone in 110ms using pnpm v12.18.0",
+      "command": "pnpm install --frozen-lockfile --ignore-scripts",
+      "exit_code": 0
+    },
+    {
+      "template": "typescript",
+      "check": "check",
+      "status": "PASS",
+      "detail": "RUN  v5.1.0 .\n\n\n Test Files  1 passed (1)\n      Tests  2 passed (2)\n   Start at  13:55:58\n   Duration  89ms (transform 56%, import 25%, worker 11%, tests 8%)\n\n$ pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build\n$ biome check .\nChecked 10 files in 7ms. No fixes applied.\n$ tsc --noEmit\n$ vitest run\n$ tsc -p tsconfig.build.json",
+      "command": "pnpm run check",
+      "exit_code": 0
+    },
+    {
+      "template": "typescript",
+      "check": "lock_integrity",
+      "status": "PASS",
+      "detail": "pnpm-lock.yaml 30ab77ff590c5a5e84534f4a1a453be67706e2e2de2d068989a7cfa5de00deff"
+    }
+  ],
+  "totals": {
+    "PASS": 75,
+    "FAIL": 0,
+    "WARN": 0,
+    "SKIP": 0
+  },
+  "status": "PASS"
+}

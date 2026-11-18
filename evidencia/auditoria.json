@@ -1,0 +1,504 @@
+{
+  "root": "language-starters-kit-2026-11-17",
+  "results": [
+    {
+      "template": "catalog",
+      "check": "templates_expected",
+      "status": "PASS",
+      "detail": "found=['css', 'go', 'java', 'lua', 'playwright', 'puppeteer', 'python', 'react', 'rust', 'typescript']"
+    },
+    {
+      "template": "catalog",
+      "check": "catalog_json",
+      "status": "PASS",
+      "detail": "entries=10 paths_ok=True"
+    },
+    {
+      "template": "css",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "css",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'pnpm install', 'format': 'pnpm exec biome format --write src/', 'lint': 'pnpm exec biome check src/ tests/', 'typecheck': None, 'test': 'pnpm test', 'build': 'pnpm build', 'dev': 'pnpm dev', 'check': 'pnpm run check'}"
+    },
+    {
+      "template": "css",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "3 archivos"
+    },
+    {
+      "template": "css",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "css",
+      "check": "package_descriptor",
+      "status": "PASS",
+      "detail": "node={'node': '>=22.12'}, scripts=['build', 'check', 'dev', 'format', 'lint', 'preview', 'test']"
+    },
+    {
+      "template": "css",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin pnpm-lock.yaml: instalación transitiva no certificada"
+    },
+    {
+      "template": "go",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "go",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'go mod download', 'format': 'go fmt ./...', 'lint': 'go vet ./...', 'typecheck': None, 'test': 'go test ./...', 'build': 'go build ./...', 'dev': 'go run ./cmd/starter', 'check': 'go vet ./... && go test ./... && go build ./...'}"
+    },
+    {
+      "template": "go",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "go",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "java",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "java",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'mvn -q -DskipTests package', 'format': 'mvn spotless:apply', 'lint': 'mvn spotless:check', 'typecheck': None, 'test': 'mvn test', 'build': 'mvn package', 'dev': 'java -cp target/classes org.example.starter.App', 'check': 'mvn spotless:check verify'}"
+    },
+    {
+      "template": "java",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "java",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "java",
+      "check": "pom_xml",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "template": "java",
+      "check": "maven_wrapper",
+      "status": "WARN",
+      "detail": "Maven Wrapper pendiente de generar con Maven conectado"
+    },
+    {
+      "template": "lua",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "lua",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'luarocks install busted', 'format': 'stylua src spec', 'lint': 'stylua --check src spec', 'typecheck': None, 'test': 'busted', 'build': None, 'dev': 'lua src/main.lua', 'check': 'stylua --check src spec && busted'}"
+    },
+    {
+      "template": "lua",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "2 archivos"
+    },
+    {
+      "template": "lua",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "playwright",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "playwright",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'pnpm install && pnpm exec playwright install chromium', 'format': 'pnpm exec biome format --write .', 'lint': 'pnpm exec biome check .', 'typecheck': 'pnpm exec tsc --noEmit', 'test': 'pnpm test', 'build': None, 'dev': 'pnpm serve', 'check': 'pnpm run check'}"
+    },
+    {
+      "template": "playwright",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "4 archivos"
+    },
+    {
+      "template": "playwright",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "playwright",
+      "check": "package_descriptor",
+      "status": "PASS",
+      "detail": "node={'node': '>=22.12'}, scripts=['check', 'format', 'lint', 'serve', 'test', 'test:report', 'typecheck']"
+    },
+    {
+      "template": "playwright",
+      "check": "node_type_alignment",
+      "status": "PASS",
+      "detail": "@types/node=22.20.5; baseline node >=22.12"
+    },
+    {
+      "template": "playwright",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin pnpm-lock.yaml: instalación transitiva no certificada"
+    },
+    {
+      "template": "puppeteer",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "puppeteer",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'pnpm install && pnpm exec puppeteer browsers install chrome', 'format': 'pnpm exec biome format --write .', 'lint': 'pnpm exec biome check .', 'typecheck': 'pnpm exec tsc --noEmit', 'test': 'pnpm test', 'build': 'pnpm build', 'dev': 'pnpm dev', 'check': 'pnpm run check'}"
+    },
+    {
+      "template": "puppeteer",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "5 archivos"
+    },
+    {
+      "template": "puppeteer",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "puppeteer",
+      "check": "package_descriptor",
+      "status": "PASS",
+      "detail": "node={'node': '>=22.12'}, scripts=['build', 'check', 'dev', 'format', 'lint', 'start', 'test', 'typecheck']"
+    },
+    {
+      "template": "puppeteer",
+      "check": "node_type_alignment",
+      "status": "PASS",
+      "detail": "@types/node=22.20.5; baseline node >=22.12"
+    },
+    {
+      "template": "puppeteer",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin pnpm-lock.yaml: instalación transitiva no certificada"
+    },
+    {
+      "template": "python",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "python",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'uv sync', 'format': 'uv run ruff format .', 'lint': 'uv run ruff check .', 'typecheck': 'uv run pyrefly check', 'test': 'uv run pytest', 'build': 'uv build', 'dev': 'uv run python -m starter_python', 'check': 'uv run ruff format --check . && uv run ruff check . && uv run pyrefly check && uv run pytest && uv build'}"
+    },
+    {
+      "template": "python",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "python",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "python",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin uv.lock: instalación transitiva no certificada"
+    },
+    {
+      "template": "react",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "react",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'pnpm install', 'format': 'pnpm exec biome format --write .', 'lint': 'pnpm exec biome check .', 'typecheck': 'pnpm exec tsc --noEmit', 'test': 'pnpm test', 'build': 'pnpm build', 'dev': 'pnpm dev', 'check': 'pnpm run check'}"
+    },
+    {
+      "template": "react",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "4 archivos"
+    },
+    {
+      "template": "react",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "react",
+      "check": "package_descriptor",
+      "status": "PASS",
+      "detail": "node={'node': '>=22.12'}, scripts=['build', 'check', 'dev', 'format', 'lint', 'preview', 'test', 'typecheck']"
+    },
+    {
+      "template": "react",
+      "check": "node_type_alignment",
+      "status": "PASS",
+      "detail": "@types/node=22.20.5; baseline node >=22.12"
+    },
+    {
+      "template": "react",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin pnpm-lock.yaml: instalación transitiva no certificada"
+    },
+    {
+      "template": "rust",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "rust",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'cargo fetch --locked', 'format': 'cargo fmt --all', 'lint': 'cargo clippy --all-targets -- -D warnings', 'typecheck': None, 'test': 'cargo test --locked', 'build': 'cargo build --locked', 'dev': 'cargo run --locked', 'check': 'cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test --locked && cargo build --locked'}"
+    },
+    {
+      "template": "rust",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "1 archivos"
+    },
+    {
+      "template": "rust",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "2 archivos"
+    },
+    {
+      "template": "typescript",
+      "check": "base_structure",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "template": "typescript",
+      "check": "command_contract",
+      "status": "PASS",
+      "detail": "{'setup': 'pnpm install', 'format': 'pnpm exec biome format --write .', 'lint': 'pnpm exec biome check .', 'typecheck': 'pnpm exec tsc --noEmit', 'test': 'pnpm test', 'build': 'pnpm build', 'dev': 'pnpm dev', 'check': 'pnpm run check'}"
+    },
+    {
+      "template": "typescript",
+      "check": "syntax_*.json",
+      "status": "PASS",
+      "detail": "5 archivos"
+    },
+    {
+      "template": "typescript",
+      "check": "syntax_*.toml",
+      "status": "PASS",
+      "detail": "0 archivos"
+    },
+    {
+      "template": "typescript",
+      "check": "package_descriptor",
+      "status": "PASS",
+      "detail": "node={'node': '>=22.12'}, scripts=['build', 'check', 'dev', 'format', 'lint', 'start', 'test', 'typecheck']"
+    },
+    {
+      "template": "typescript",
+      "check": "node_type_alignment",
+      "status": "PASS",
+      "detail": "@types/node=22.20.5; baseline node >=22.12"
+    },
+    {
+      "template": "typescript",
+      "check": "lockfile",
+      "status": "WARN",
+      "detail": "Sin pnpm-lock.yaml: instalación transitiva no certificada"
+    },
+    {
+      "template": "python",
+      "check": "compile",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "python",
+      "check": "pytest",
+      "status": "PASS",
+      "detail": "..                                                                       [100%]\n2 passed in 0.03s\n\n"
+    },
+    {
+      "template": "python",
+      "check": "ruff",
+      "status": "SKIP",
+      "detail": "ruff requiere validación en entorno con dependencias instaladas"
+    },
+    {
+      "template": "python",
+      "check": "pyrefly",
+      "status": "SKIP",
+      "detail": "pyrefly requiere validación en entorno con dependencias instaladas"
+    },
+    {
+      "template": "go",
+      "check": "go_test",
+      "status": "PASS",
+      "detail": "?   \texample.com/starter-go/cmd/starter\t[no test files]\nok  \texample.com/starter-go/greet\t(cached)\n\n"
+    },
+    {
+      "template": "go",
+      "check": "go_vet",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "go",
+      "check": "go_build",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "java",
+      "check": "javac",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "java",
+      "check": "java_main",
+      "status": "PASS",
+      "detail": "Hola, Java\n\n"
+    },
+    {
+      "template": "java",
+      "check": "maven_junit_spotless",
+      "status": "SKIP",
+      "detail": "Maven/plug-ins no disponibles; JUnit+Spotless sin certificar"
+    },
+    {
+      "template": "css",
+      "check": "node_test",
+      "status": "PASS",
+      "detail": "TAP version 13\n# Subtest: tokens y layers presentes\nok 1 - tokens y layers presentes\n  ---\n  duration_ms: 0.881431\n  type: 'test'\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 61.571374\n\n"
+    },
+    {
+      "template": "css",
+      "check": "js_syntax",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "playwright",
+      "check": "fixture_syntax",
+      "status": "PASS",
+      "detail": "\n"
+    },
+    {
+      "template": "playwright",
+      "check": "http_fixture",
+      "status": "PASS",
+      "detail": "servidor HTML local real"
+    },
+    {
+      "template": "typescript",
+      "check": "node_dependencies",
+      "status": "SKIP",
+      "detail": "pnpm/TypeScript/Vitest/Biome no instalados en entorno offline"
+    },
+    {
+      "template": "react",
+      "check": "node_dependencies",
+      "status": "SKIP",
+      "detail": "pnpm/Vite/React/Vitest/Biome no instalados en entorno offline"
+    },
+    {
+      "template": "css",
+      "check": "vite_biome",
+      "status": "SKIP",
+      "detail": "pnpm/Vite/Biome no instalados en entorno offline"
+    },
+    {
+      "template": "playwright",
+      "check": "browser_e2e",
+      "status": "SKIP",
+      "detail": "Playwright y navegador Chromium no descargados"
+    },
+    {
+      "template": "puppeteer",
+      "check": "browser_test",
+      "status": "SKIP",
+      "detail": "Puppeteer/Chrome no instalados"
+    },
+    {
+      "template": "rust",
+      "check": "cargo_clippy_tests",
+      "status": "SKIP",
+      "detail": "Toolchain Rust no certificada"
+    },
+    {
+      "template": "lua",
+      "check": "lua_busted_stylua",
+      "status": "SKIP",
+      "detail": "Toolchain Lua no certificada"
+    },
+    {
+      "template": "catalog",
+      "check": "typescript_syntax_only",
+      "status": "PASS",
+      "detail": "13 archivos TS/TSX: 0 errores sintácticos\n\n"
+    },
+    {
+      "template": "generator",
+      "check": "unittest",
+      "status": "PASS",
+      "detail": "\ntest_generated_go_runs_and_detects_regression (test_generator.GeneratorTests.test_generated_go_runs_and_detects_regression) ... ok\ntest_generated_python_runs_and_detects_regression (test_generator.GeneratorTests.test_generated_python_runs_and_detects_regression) ... ok\ntest_generates_all_ten (test_generator.GeneratorTests.test_generates_all_ten) ... ok\ntest_never_overwrites (test_generator.GeneratorTests.test_never_overwrites) ... ok\ntest_python_module_is_renamed_and_imported (test_generator.GeneratorTests.test_python_module_is_renamed_and_imported) ... ok\ntest_rejects_path_traversal (test_generator.GeneratorTests.test_rejects_path_traversal) ... ok\ntest_rust_lockfile_name_updated (test_generator.GeneratorTests.test_rust_lockfile_name_updated) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 4.595s\n\nOK\n"
+    }
+  ],
+  "totals": {
+    "PASS": 65,
+    "FAIL": 0,
+    "WARN": 7,
+    "SKIP": 10
+  },
+  "status": "PARTIAL"
+}

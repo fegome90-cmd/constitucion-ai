@@ -1,0 +1,6 @@
+# This is a cursor rules file - should be flagged as FILE-001
+# The file itself is a violation because it should be named .airules
+
+Always use TypeScript for new files.
+Follow the existing code style.
+Run tests before committing.

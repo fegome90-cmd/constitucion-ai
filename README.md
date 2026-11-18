@@ -2,8 +2,6 @@
 
 [![Version](https://img.shields.io/badge/version-v1.1-blue.svg)](./constitution/AGENTIC-CONSTITUTION.md)
 
-
-
 > Marco fundacional para gobernanza de sistemas de IA en desarrollo de software.
 
 ## ¿Qué es esto?
@@ -91,6 +89,59 @@ constitucion-ai/
 ```
 
 ## Desarrollo
+
+### Constitution Linter
+
+Herramienta de linting para detectar violaciones de neutralidad de modelo (Ley VII, Artículo 2).
+
+#### Instalación
+
+```bash
+# Instalar como herramienta UV
+uv tool install .
+
+# O usar directamente con uv run
+uv run constitution-linter --help
+```
+
+#### Uso
+
+```bash
+# Escanear archivo o directorio
+uv run constitution-linter scan .
+
+# Ver plan de correcciones
+uv run constitution-linter plan .
+
+# Aplicar correcciones automáticas
+uv run constitution-linter fix .
+
+# Ejecutar todo (scan + plan + fix)
+uv run constitution-linter run-all .
+```
+
+#### Códigos de Salida
+
+| Código | Descripción |
+|--------|-------------|
+| 0 | Sin violaciones |
+| 1 | Violaciones encontradas |
+| 2 | Dry run con violaciones |
+| 3 | Error de validación |
+| 4 | Error de ejecución |
+
+#### Patrones Detectados
+
+| Categoría | Regla | Descripción |
+|-----------|-------|-------------|
+| Directorios | DIR-001 | `.claude/` → `.ai/` |
+| Directorios | DIR-002 | `.cursor/` → `.ai/` |
+| Archivos | FILE-001 | `.cursorrules` → `.airules` |
+| Archivos | FILE-002 | `.cursorignore` → `.aiignore` |
+| Texto | TXT-001 | "Claude" → "AI" |
+| Texto | TXT-002 | "cursor rules" → "AI rules" |
+
+> **Nota:** Los patrones están definidos en `scripts/constitution_linter/patterns.py`. Para personalizar, modificar ese archivo o usar `load_patterns_from_yaml()` con un archivo YAML personalizado.
 
 ### Linting de Documentación
 

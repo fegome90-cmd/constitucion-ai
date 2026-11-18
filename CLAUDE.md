@@ -20,7 +20,19 @@ constitucion-ai/
 ├── archive/
 │   └── v0.7-AGENTIC-CONSTITUTION.md  # Versiones anteriores
 ├── docs/
+│   ├── adr/                       # Decisiones difíciles de revertir
+│   ├── agents/                    # Configuración de skills y tracker
 │   └── mandate-roles-and-jurisdiction.md
+├── templates/                     # Config kits y fuente canónica de pins
+├── starters/                      # Proyectos ejecutables y lockfiles
+├── catalog.json                   # Índice y contrato de comandos v2
+├── tooling/                       # Auditor de estructura y gates
+├── AUDITORIA.md                   # Resultados y excepciones
+├── scripts/
+│   ├── apply-kit.sh               # Aplica un kit y corre el smoke test
+│   ├── check-versions.sh          # Verifica pins, drift y enlaces entre capas
+│   └── scaffold.py                # Exporta un starter independiente
+├── GLOSSARY.md                    # Vocabulario canónico
 └── CLAUDE.md                      # Este archivo
 ```
 
@@ -29,10 +41,11 @@ constitucion-ai/
 Para usar esta constitución en un proyecto:
 
 1. **Referenciar desde CLAUDE.md del proyecto:**
+
    ```markdown
    # Gobernanza
    Este proyecto opera bajo la Constitución de Código Agéntico.
-   Ver: https://github.com/felipe/constitucion-ai
+   Ver: https://github.com/fegome90-cmd/constitucion-ai
    ```
 
 2. **O incluir directamente:**
@@ -41,7 +54,7 @@ Para usar esta constitución en un proyecto:
 ## Principios Clave
 
 | Ley | Propósito |
-|-----|-----------|
+| ----- | ----------- |
 | Ley I | Cambio legítimo - intención explícita, planificación proporcional |
 | Ley II | Lectura previa y no duplicación |
 | Ley III | Arquitectura base y regla de scope |
@@ -69,7 +82,7 @@ Para usar esta constitución en un proyecto:
 ### Roles y funciones autorizadas
 
 | Rol / Función | Descripción |
-|---------------|-------------|
+| --------------- | ------------- |
 | **Maintainer** | Mantenedores del repositorio con acceso de escritura directo |
 | **Security Lead** | Responsable de revisar cambios con impacto en seguridad |
 | **Release Manager** | Responsable de aprobar y publicar nuevas versiones |
@@ -77,7 +90,7 @@ Para usar esta constitución en un proyecto:
 ### Niveles de autoridad por tipo de acción
 
 | Tipo de acción | Superficie | Autoridad mínima requerida | Umbral de escalación |
-|----------------|------------|---------------------------|----------------------|
+| ---------------- | ------------ | --------------------------- | ---------------------- |
 | Cambios de documentación | `docs/`, `CLAUDE.md` | Maintainer (1 aprobación en PR) | — |
 | Enmiendas constitucionales (parche) | `constitution/` | Maintainer (1 aprobación en PR) | — |
 | Enmiendas constitucionales (menor/mayor) | `constitution/` | Maintainer (2 aprobaciones en PR) | Security Lead si impacta seguridad |
@@ -99,3 +112,17 @@ Esta constitución es un documento vivo. Proponer cambios vía issues o PRs sigu
 ## Licencia
 
 MIT
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs for this repo live in GitHub Issues (`fegome90-cmd/constitucion-ai`), driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles map to same-named labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

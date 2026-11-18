@@ -1,0 +1,2 @@
+[codespell]
+skip = .git,.venv,node_modules,archive,__pycache__,*.lock

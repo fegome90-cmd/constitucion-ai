@@ -1,0 +1,176 @@
+{
+  "schema_version": 2,
+  "description": "Índice de config kits y starters. config_dir es la fuente de verdad; starter_dir es el ejemplo ejecutable.",
+  "templates": [
+    {
+      "id": "css",
+      "config_dir": "templates/css",
+      "starter_dir": "starters/css",
+      "runtime": "Node.js >=22.12 + pnpm 12 (Vite)",
+      "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
+      "commands": {
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+        "format": "pnpm exec biome format --write src/",
+        "lint": "pnpm exec biome check src/ tests/",
+        "typecheck": null,
+        "test": "pnpm test",
+        "build": "pnpm build",
+        "dev": "pnpm dev",
+        "check": "pnpm run check"
+      }
+    },
+    {
+      "id": "go",
+      "config_dir": "templates/go",
+      "starter_dir": "starters/go",
+      "runtime": "Go >=1.23",
+      "pins": { "file": "go.mod", "format": "gomod-version", "registry": "go" },
+      "commands": {
+        "setup": "go mod download",
+        "format": "go fmt ./...",
+        "lint": "go vet ./...",
+        "typecheck": null,
+        "test": "go test ./...",
+        "build": "go build ./...",
+        "dev": "go run ./cmd/starter",
+        "check": "go vet ./... && go test ./... && go build ./..."
+      }
+    },
+    {
+      "id": "java",
+      "config_dir": "templates/java",
+      "starter_dir": "starters/java",
+      "runtime": "Java 21 + Maven 3.9",
+      "pins": { "file": "pom.xml", "format": "maven-properties", "registry": "maven" },
+      "commands": {
+        "setup": "mvn -q -DskipTests package",
+        "format": "mvn spotless:apply",
+        "lint": "mvn spotless:check",
+        "typecheck": null,
+        "test": "mvn test",
+        "build": "mvn package",
+        "dev": "java -cp target/classes org.example.starter.App",
+        "check": "mvn spotless:check verify"
+      }
+    },
+    {
+      "id": "lua",
+      "config_dir": "templates/lua",
+      "starter_dir": "starters/lua",
+      "runtime": "Lua 5.4 + LuaRocks",
+      "pins": { "file": "rocks.txt", "format": "luarocks-exact", "registry": "luarocks" },
+      "commands": {
+        "setup": "version=$(sed -n 's/^busted==//p' rocks.txt) && (luarocks --lua-version=5.4 --local show busted \"${version:?missing busted pin}\" || luarocks --lua-version=5.4 --local install busted \"$version\")",
+        "format": "stylua src spec",
+        "lint": "stylua --check src spec",
+        "typecheck": null,
+        "test": "busted",
+        "build": null,
+        "dev": "lua src/main.lua",
+        "check": "stylua --check src spec && busted"
+      }
+    },
+    {
+      "id": "playwright",
+      "config_dir": "templates/playwright",
+      "starter_dir": "starters/playwright",
+      "runtime": "Node.js >=22.12 + pnpm 12 + Chromium",
+      "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
+      "commands": {
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec playwright install chromium",
+        "format": "pnpm exec biome format --write .",
+        "lint": "pnpm exec biome check .",
+        "typecheck": "pnpm exec tsc --noEmit",
+        "test": "pnpm test",
+        "build": null,
+        "dev": "pnpm serve",
+        "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+      }
+    },
+    {
+      "id": "puppeteer",
+      "config_dir": "templates/puppeteer",
+      "starter_dir": "starters/puppeteer",
+      "runtime": "Node.js >=22.12 + pnpm 12 + Chrome",
+      "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
+      "commands": {
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec puppeteer browsers install chrome",
+        "format": "pnpm exec biome format --write .",
+        "lint": "pnpm exec biome check .",
+        "typecheck": "pnpm exec tsc --noEmit",
+        "test": "pnpm test",
+        "build": "pnpm build",
+        "dev": "pnpm dev",
+        "check": "pnpm run check"
+      }
+    },
+    {
+      "id": "python",
+      "config_dir": "templates/python",
+      "starter_dir": "starters/python",
+      "runtime": "Python >=3.12 + uv",
+      "pins": { "file": "pyproject.toml", "format": "pep440-exact", "registry": "pypi" },
+      "commands": {
+        "setup": "uv sync --frozen",
+        "format": "uv run ruff format .",
+        "lint": "uv run ruff check .",
+        "typecheck": "uv run mypy src",
+        "test": "uv run pytest",
+        "build": "uv build",
+        "dev": "uv run python -m starter_python",
+        "check": "uv run ruff format --check . && uv run ruff check . && uv run mypy src && uv run pytest && uv build"
+      }
+    },
+    {
+      "id": "react",
+      "config_dir": "templates/react",
+      "starter_dir": "starters/react",
+      "runtime": "Node.js >=22.12 + pnpm 12",
+      "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
+      "commands": {
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+        "format": "pnpm exec biome format --write .",
+        "lint": "pnpm exec biome check .",
+        "typecheck": "pnpm exec tsc --noEmit",
+        "test": "pnpm test",
+        "build": "pnpm build",
+        "dev": "pnpm dev",
+        "check": "pnpm run check"
+      }
+    },
+    {
+      "id": "rust",
+      "config_dir": "templates/rust",
+      "starter_dir": "starters/rust",
+      "runtime": "Rust 1.100 stable + Cargo",
+      "pins": { "file": "rust-toolchain.toml", "format": "rustup-channel", "registry": "rustup" },
+      "commands": {
+        "setup": "cargo fetch --locked",
+        "format": "cargo fmt --all",
+        "lint": "cargo clippy --all-targets -- -D warnings",
+        "typecheck": null,
+        "test": "cargo test --locked",
+        "build": "cargo build --locked",
+        "dev": "cargo run --locked",
+        "check": "cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test --locked && cargo build --locked"
+      }
+    },
+    {
+      "id": "typescript",
+      "config_dir": "templates/typescript",
+      "starter_dir": "starters/typescript",
+      "runtime": "Node.js >=22.12 + pnpm 12",
+      "pins": { "file": "package.json", "format": "npm-exact", "registry": "npm" },
+      "commands": {
+        "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+        "format": "pnpm exec biome format --write .",
+        "lint": "pnpm exec biome check .",
+        "typecheck": "pnpm exec tsc --noEmit",
+        "test": "pnpm test",
+        "build": "pnpm build",
+        "dev": "pnpm dev",
+        "check": "pnpm run check"
+      }
+    }
+  ]
+}
