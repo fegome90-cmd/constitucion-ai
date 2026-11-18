@@ -223,8 +223,12 @@ for entry in catalog["templates"]:
         drift = 1
 
 print("=== pre-commit vs lockfile ===")
-lock_text = (root / "uv.lock").read_text()
-locked = dict(re.findall(r'name = "([^"]+)"\nversion = "([^"]+)"', lock_text))
+lock_data = tomllib.loads((root / "uv.lock").read_text())
+locked = {
+    pkg["name"]: pkg["version"]
+    for pkg in lock_data.get("package", [])
+    if isinstance(pkg, dict) and "name" in pkg and "version" in pkg
+}
 hook_map = {
     "https://github.com/codespell-project/codespell": "codespell",
     "https://github.com/astral-sh/ruff-pre-commit": "ruff",
@@ -244,7 +248,11 @@ for i, line in enumerate(hook_lines):
     checked_hooks += 1
     rev = next((m.group(1) for following in hook_lines[i + 1 : i + 4]
                 if (m := re.match(r"\s*rev:\s*(\S+)", following))), None)
-    if rev and package in locked and rev.lstrip("v") != locked[package]:
+    if not rev or package not in locked:
+        print(f"SIN FUENTE pre-commit/{package}: falta rev o entrada en uv.lock")
+        drift = 1
+        precommit_drift = 1
+    elif rev.removeprefix("v") != locked[package]:
         print(f"PRE-COMMIT DRIFT {package}: rev {rev}, lock {locked[package]}")
         drift = 1
         precommit_drift = 1
