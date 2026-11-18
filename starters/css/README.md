@@ -4,6 +4,7 @@ Sin Tailwind ni Sass. HTML + CSS, con prueba de estructura mediante `node:test` 
 
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
+pnpm format
 pnpm lint
 pnpm test
 pnpm build
@@ -12,4 +13,4 @@ pnpm dev
 
 El starter incluye `pnpm-lock.yaml` y una prueba de estructura del CSS.
 
-Control integrado: `pnpm run check`.
+Control integrado (`check`): `pnpm run check`.

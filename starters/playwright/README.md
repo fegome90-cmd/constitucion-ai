@@ -5,11 +5,13 @@ Test E2E real con servidor HTTP local Node (`fixtures/index.html`). Sin dependen
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm exec playwright install chromium
+pnpm format
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm serve
 ```
 
 `webServer` inicia automáticamente el servidor de fixture. Firefox/WebKit son perfiles posteriores. No confundir `playwright` con `puppeteer`: el primero trae assertions, runner, trazas y fixtures.
 
-Control integrado: `pnpm run check`.
+Control integrado (`check`): `pnpm run check`.

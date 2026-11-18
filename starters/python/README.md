@@ -6,13 +6,15 @@ Los pins y la configuración de herramientas viven en `templates/python/` (ADR-0
 
 ## Gates
 
-Ejecutar `check` desde `starter.json`:
+Ejecutar los gates de `starter.json` (`check` valida formato, lint, tipos, tests y build):
 
 ```sh
 uv sync --frozen
+uv run ruff format .
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src
 uv run pytest
 uv build
+uv run python -m starter_python
 ```
