@@ -1,6 +1,6 @@
 # Config kits
 
-Cada directorio de primer nivel es un config kit: un conjunto versionado de archivos de configuración para un lenguaje o toolchain. `_common` contiene las herramientas transversales. `python` es el piloto ya construido y validado.
+Cada directorio de primer nivel es un config kit: un conjunto versionado de archivos de configuración para un lenguaje o toolchain. `_common` contiene las herramientas transversales. `python` fue el piloto inicial; el catálogo completo (`catalog.json`) integra los diez kits (`css`, `go`, `java`, `lua`, `playwright`, `puppeteer`, `python`, `react`, `rust`, `typescript`) junto con sus starters ejecutables en `starters/`.
 
 ## Estructura de un kit
 
@@ -25,22 +25,25 @@ Los documentos del kit no se copian al destino; `apply-kit.sh` copia solo la con
 
 ## Fuentes de versión por ecosistema
 
-| Lenguaje | Registry / fuente autoritativa |
+| Lenguaje / perfil | Registry / fuente autoritativa |
 | ---------- | ------------------------------- |
 | Python | PyPI JSON API |
 | TypeScript | npm registry (`/latest`) |
-| Java | Maven Central |
 | React | npm registry (`/latest`) |
 | CSS | npm registry (`/latest`) |
+| Playwright | npm registry (`/latest`) |
+| Puppeteer | npm registry (`/latest`) |
+| Java | Maven Central |
 | Rust | crates.io API |
 | Go | proxy.golang.org / GitHub Releases |
 | Lua | LuaRocks / GitHub Releases |
 
-## Cobertura pendiente
+## Estado de integración y seams
 
-Los siete kits restantes no están construidos. El procedimiento de arriba es la receta; el patrón ya está validado por los dos seams:
+Los diez kits del catálogo y `_common` están integrados en `templates/` y enlazados desde `starters/` (ADR-0004). La validación y operación siguen dos seams principales más los scripts de verificación:
 
-- `scripts/apply-kit.sh <kit> <destino>` — copia la configuración y corre el smoke test.
-- `scripts/check-versions.sh` — re-resuelve pins y reporta drift, incluido pre-commit contra el lockfile.
+- `scripts/apply-kit.sh <kit> <destino>` — copia la configuración del kit sin sobrescribir archivos existentes y corre el smoke test disponible.
+- `scripts/check-versions.sh` — re-resuelve pins, verifica la consistencia entre `templates/` y `starters/`, y comprueba el alineamiento entre `.pre-commit-config.yaml` y `uv.lock`.
+- `scripts/scaffold.py` y `tooling/audit.py` — exportan proyectos independientes desde `starters/` y auditan la estructura y los gates del contrato v2.
 
-Ningún kit nuevo debe introducir un tercer seam.
+Ningún kit nuevo debe introducir un seam adicional de copia o verificación.

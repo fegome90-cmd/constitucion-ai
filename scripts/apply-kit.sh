@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   echo "Uso: apply-kit.sh <kit> <destino>" >&2
-  echo "  kit: python | _common" >&2
+  echo "  kit: css | go | java | lua | playwright | puppeteer | python | react | rust | typescript | _common" >&2
 }
 
 if [[ $# -ne 2 ]]; then
@@ -14,7 +14,8 @@ fi
 KIT="${1}"
 DEST="${2}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATES="$(dirname "${SCRIPT_DIR}")/templates"
+REPO_ROOT="$(dirname "${SCRIPT_DIR}")"
+TEMPLATES="${REPO_ROOT}/templates"
 KIT_DIR="${TEMPLATES}/${KIT}"
 
 if [[ ! -d "${KIT_DIR}" ]]; then
@@ -52,6 +53,9 @@ for file in "${FILES[@]}"; do
       }
       { print }
     ' "${KIT_DIR}/${file}" > "${DEST}/${file}"
+  elif [[ "${file}" == "package.json" && "${KIT}" != "_common" ]]; then
+    sed "s/\"name\": \"starter-${KIT}\"/\"name\": \"${KIT}-config-kit-project\"/" \
+      "${KIT_DIR}/${file}" > "${DEST}/${file}"
   else
     cp "${KIT_DIR}/${file}" "${DEST}/${file}"
   fi
@@ -77,7 +81,65 @@ smoke_python() {
   (cd "${fixture}" && pytest -q)
 }
 
+smoke_typescript() {
+  local starter_nm="${REPO_ROOT}/starters/typescript/node_modules"
+  if [[ ! -d "${starter_nm}" ]]; then
+    echo "Smoke test TypeScript: omitido (falta starters/typescript/node_modules)."
+    return 0
+  fi
+
+  local fixture
+  fixture="$(mktemp -d)"
+  trap 'rm -rf "${fixture}"' RETURN
+
+  cp "${DEST}/package.json" "${DEST}/biome.json" "${DEST}/tsconfig.json" "${DEST}/tsconfig.build.json" "${fixture}/"
+  ln -s "${starter_nm}" "${fixture}/node_modules"
+  mkdir -p "${fixture}/src" "${fixture}/tests"
+  printf 'export function add(a: number, b: number): number {\n  return a + b;\n}\n' > "${fixture}/src/index.ts"
+  printf 'import { describe, expect, it } from "vitest";\nimport { add } from "../src/index.js";\n\ndescribe("add", () => {\n  it("suma", () => {\n    expect(add(1, 2)).toBe(3);\n  });\n});\n' > "${fixture}/tests/index.test.ts"
+
+  echo "Smoke test TypeScript: biome check"
+  (cd "${fixture}" && ./node_modules/.bin/biome check .)
+  echo "Smoke test TypeScript: tsc --noEmit"
+  (cd "${fixture}" && ./node_modules/.bin/tsc --noEmit)
+  echo "Smoke test TypeScript: vitest run"
+  (cd "${fixture}" && ./node_modules/.bin/vitest run)
+  echo "Smoke test TypeScript: build"
+  (cd "${fixture}" && ./node_modules/.bin/tsc -p tsconfig.build.json)
+}
+
+smoke_react() {
+  local starter_nm="${REPO_ROOT}/starters/react/node_modules"
+  if [[ ! -d "${starter_nm}" ]]; then
+    echo "Smoke test React: omitido (falta starters/react/node_modules)."
+    return 0
+  fi
+
+  local fixture
+  fixture="$(mktemp -d)"
+  trap 'rm -rf "${fixture}"' RETURN
+
+  cp "${DEST}/package.json" "${DEST}/biome.json" "${DEST}/tsconfig.json" "${DEST}/vite.config.ts" "${DEST}/vitest.config.ts" "${fixture}/"
+  ln -s "${starter_nm}" "${fixture}/node_modules"
+  mkdir -p "${fixture}/src"
+  printf '<!doctype html>\n<html lang="es">\n  <head>\n    <meta charset="UTF-8" />\n    <title>react-config-kit-project</title>\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/main.tsx"></script>\n  </body>\n</html>\n' > "${fixture}/index.html"
+  printf 'export function App() {\n  return <button type="button">OK</button>;\n}\n' > "${fixture}/src/App.tsx"
+  printf 'import { StrictMode } from "react";\nimport { createRoot } from "react-dom/client";\nimport { App } from "./App";\n\nconst root = document.getElementById("root");\nif (root) {\n  createRoot(root).render(\n    <StrictMode>\n      <App />\n    </StrictMode>,\n  );\n}\n' > "${fixture}/src/main.tsx"
+  printf 'import { render, screen } from "@testing-library/react";\nimport { describe, expect, it } from "vitest";\nimport { App } from "./App";\n\ndescribe("App", () => {\n  it("renderiza", () => {\n    render(<App />);\n    expect(screen.getByRole("button", { name: "OK" })).toBeTruthy();\n  });\n});\n' > "${fixture}/src/App.test.tsx"
+
+  echo "Smoke test React: biome check"
+  (cd "${fixture}" && ./node_modules/.bin/biome check .)
+  echo "Smoke test React: tsc --noEmit"
+  (cd "${fixture}" && ./node_modules/.bin/tsc --noEmit)
+  echo "Smoke test React: vitest run"
+  (cd "${fixture}" && ./node_modules/.bin/vitest run)
+  echo "Smoke test React: vite build"
+  (cd "${fixture}" && ./node_modules/.bin/vite build)
+}
+
 case "${KIT}" in
   python) smoke_python ;;
+  typescript) smoke_typescript ;;
+  react) smoke_react ;;
   *) echo "Kit '${KIT}' aplicado; no tiene smoke test ejecutable." ;;
 esac

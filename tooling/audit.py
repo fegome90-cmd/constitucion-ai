@@ -9,6 +9,7 @@ import json
 import os
 import platform
 import re
+import socket
 import subprocess  # nosec B404 - Required for the opt-in starter gates.
 import sys
 import tempfile
@@ -96,7 +97,19 @@ def audit_structure(root: Path, entry: dict[str, Any], results: list[dict[str, A
     locked = lockfile is None or (starter / lockfile).is_file()
     if lockfile:
         results.append(result(name, "lockfile", "PASS" if locked else "FAIL", lockfile))
-    return not missing and valid and linked and locked
+
+    drifted = sorted(
+        item.name
+        for item in config.iterdir()
+        if item.is_file()
+        and item.name not in {"README.md", "EVIDENCE.md"}
+        and (
+            not (starter / item.name).is_file()
+            or (starter / item.name).read_bytes() != item.read_bytes()
+        )
+    )
+    results.append(result(name, "config_sync", "FAIL" if drifted else "PASS", ", ".join(drifted)))
+    return not missing and valid and linked and locked and not drifted
 
 
 def result(
@@ -143,7 +156,13 @@ def run_gates(root: Path, entry: dict[str, Any], results: list[dict[str, Any]]) 
             "GOWORK": "off",
             "GOTOOLCHAIN": "local",
             "CARGO_NET_OFFLINE": "true",
+            "CI": "true",
+            "PLAYWRIGHT_HTML_OPEN": "never",
         }
+        if name == "playwright":
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                environment["PORT"] = str(sock.getsockname()[1])
         setup_passed = True
         for gate in ("setup", "check"):
             command = commands[gate]

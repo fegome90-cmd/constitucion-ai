@@ -1,14 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = process.env.PORT ?? "4173";
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: "./tests",
   timeout: 30_000,
   reporter: "html",
-  use: { baseURL: "http://127.0.0.1:4173", trace: "on-first-retry" },
+  use: { baseURL, trace: "on-first-retry" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: "node src/server.mjs",
-    url: "http://127.0.0.1:4173",
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 15_000,
   },

@@ -1,8 +1,8 @@
-# Auditoría de integración del 17 de noviembre de 2026
+# Auditoría de integración del 18 de noviembre de 2026
 
 ## Dictamen
 
-La ejecución de los starters obtuvo **65 PASS, 0 FAIL y 0 SKIP** en macOS arm64. La validación de adopción de herramientas sigue **PARCIAL** por la excepción de Lua y Maven.
+La ejecución de los starters obtuvo **75 PASS, 0 FAIL y 0 SKIP** en macOS arm64 (incluyendo la verificación `config_sync` de paridad exacta entre `templates/` y `starters/` para los diez entornos). La validación de adopción de herramientas sigue **PARCIAL** por la excepción de Lua y Maven.
 
 ## Evidencia de ejecución
 

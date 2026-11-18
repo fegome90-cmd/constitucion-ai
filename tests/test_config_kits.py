@@ -223,3 +223,31 @@ def test_check_versions_rejects_a_minimum_instead_of_an_exact_pin(
 
     assert result.returncode == 1
     assert f"PIN NO EXACTO python/{requirement}" in result.stdout
+
+
+@pytest.mark.parametrize("kit", ["react", "typescript"])
+def test_apply_kit_delivers_js_kit_without_docs_and_normalizes_name(
+    tmp_path: Path, kit: str
+) -> None:
+    """Applying a JS/TS kit normalizes package.json name, skips docs, and passes its smoke test."""
+    result = run_apply_kit(kit, tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    package = json.loads((tmp_path / "package.json").read_text())
+    assert package["name"] == f"{kit}-config-kit-project"
+    assert not (tmp_path / "README.md").exists()
+    assert not (tmp_path / "EVIDENCE.md").exists()
+    assert (tmp_path / "biome.json").is_file()
+    assert (tmp_path / "tsconfig.json").is_file()
+
+
+@pytest.mark.parametrize("kit", ["react", "typescript"])
+def test_apply_kit_refuses_to_overwrite_existing_package_json(tmp_path: Path, kit: str) -> None:
+    """An existing JS/TS package.json is left untouched when applying a kit."""
+    sentinel = '{"name": "existing-app"}\n'
+    (tmp_path / "package.json").write_text(sentinel)
+
+    result = run_apply_kit(kit, tmp_path)
+
+    assert result.returncode == 1
+    assert (tmp_path / "package.json").read_text() == sentinel
