@@ -543,13 +543,22 @@ def _preflight_commit_destinations(
             if not name:
                 continue
             original = root / name
-            if not (
-                original in content_sources
-                or any(
-                    original == src or original.is_relative_to(src) for src, _ in ordered_renames
-                )
-            ):
+            affected_by_rename = any(
+                original == src or original.is_relative_to(src) for src, _ in ordered_renames
+            )
+            if original not in content_sources and not affected_by_rename:
                 continue
+            # The staging allowlist contains regular files only, but a
+            # directory rename moves *every* child. Validate tracked links
+            # and gitlinks too, before they can be relocated without staging.
+            if affected_by_rename and (
+                original.is_symlink() or (original.exists() and not original.is_file())
+            ):
+                print(
+                    f"Refusing commit: non-regular tracked rename source: {name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
             if original.is_file() and not original.is_symlink():
                 eligible_sources.add(name)
         staged_paths = (

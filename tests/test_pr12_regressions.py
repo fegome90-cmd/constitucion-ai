@@ -1340,3 +1340,35 @@ def test_renamed_untracked_leaf_cannot_resurrect_deleted_tracked_blob(tmp_path: 
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
     assert _git(tmp_path, "diff", "--name-only") == ".claude/.airules"
     assert _git(tmp_path, "ls-files") == ".claude/.airules"
+
+
+def test_directory_autocommit_rejects_tracked_symlink_before_any_move(
+    tmp_path: Path,
+) -> None:
+    """A tracked symlink must not be left at its old path by a partial rename commit."""
+    import os
+
+    if os.name == "nt":
+        return
+
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    document = alias / "note.md"
+    document.write_text("neutral content\n", encoding="utf-8")
+    link = alias / "link"
+    link.symlink_to("note.md")
+    _git(tmp_path, "add", "--", ".claude/note.md", ".claude/link")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    before = _git(tmp_path, "rev-parse", "HEAD")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert _git(tmp_path, "rev-parse", "HEAD") == before
+    assert document.read_text(encoding="utf-8") == "neutral content\n"
+    assert link.is_symlink()
+    assert link.readlink() == Path("note.md")
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "status", "--porcelain") == ""
