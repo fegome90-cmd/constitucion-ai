@@ -226,6 +226,37 @@ class ConstitutionFixer:
 
         return removed
 
+    def planned_path_renames(self, plan: FixPlan) -> tuple[tuple[Path, Path], ...]:
+        """Canonical lexical path moves for apply and pre-commit validation."""
+        renames: dict[Path, Path] = {}
+        reverse: dict[Path, Path] = {}
+        for violation in plan.violations:
+            if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
+                if violation.column is None:
+                    raise ValueError("Directory violation has no matched path offset")
+                match_end = violation.column + len(violation.match)
+                source = Path(violation.file_path[:match_end].removesuffix(os.sep)).absolute()
+            elif violation.violation_type == ViolationType.FILE_ALIAS:
+                source = Path(violation.file_path).absolute()
+            else:
+                continue
+            destination = source.with_name(violation.suggestion.rstrip("/\\"))
+            # Do not modify ancestors of a scoped file/subtree.
+            if not source.is_relative_to(self.base_path) or not destination.is_relative_to(
+                self.base_path
+            ):
+                continue
+            if source in renames and renames[source] != destination:
+                raise ValueError(f"Conflicting rename for {source}")
+            prior = reverse.get(destination)
+            if prior is not None and prior != source:
+                raise ValueError(
+                    f"Conflicting rename destination {destination}: {prior} and {source}"
+                )
+            renames[source] = destination
+            reverse[destination] = source
+        return tuple(sorted(renames.items(), key=lambda item: len(item[0].parts), reverse=True))
+
     def apply_plan(
         self,
         plan: FixPlan,
@@ -238,55 +269,23 @@ class ConstitutionFixer:
             return FixResult(plan=plan, files_modified=(), success=True, error_message=None)
 
         content_edits: dict[Path, list[Violation]] = {}
-        renames: dict[Path, Path] = {}
         modified: list[str] = []
         updated_plan = plan
 
         try:
+            ordered_renames = self.planned_path_renames(plan)
+            renames = dict(ordered_renames)
             for violation in plan.violations:
-                # A non-alias path match may require human review, but cannot
-                # be treated as a content span without a line/column location.
                 if (
                     violation.violation_type
-                    not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
-                    and violation.line is None
+                    in (
+                        ViolationType.DIRECTORY_ALIAS,
+                        ViolationType.FILE_ALIAS,
+                    )
+                    or violation.line is None
                 ):
                     continue
-                if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
-                    if violation.column is None:
-                        raise ValueError("Directory violation has no matched path offset")
-                    # v.column indexes the complete path. Capture the matched directory,
-                    # never a child file that happened to contain the directory alias.
-                    end = violation.column + len(violation.match)
-                    source = Path(violation.file_path[:end].rstrip("/\\")).absolute()
-                    destination = source.with_name(violation.suggestion.rstrip("/\\"))
-                elif violation.violation_type == ViolationType.FILE_ALIAS:
-                    source = Path(violation.file_path).absolute()
-                    destination = source.with_name(violation.suggestion.rstrip("/\\"))
-                else:
-                    content_edits.setdefault(Path(violation.file_path).absolute(), []).append(
-                        violation
-                    )
-                    continue
-                # An ancestor of the selected file/subtree is not in scope.
-                # Avoid renaming a parent outside the caller's requested root.
-                if not source.is_relative_to(self.base_path) or not destination.is_relative_to(
-                    self.base_path
-                ):
-                    continue
-                if source in renames and renames[source] != destination:
-                    raise ValueError(f"Conflicting rename for {source}")
-                renames[source] = destination
-
-            # Reject two distinct sources targeting the same destination before edits.
-            destinations: dict[Path, Path] = {}
-            for source, destination in renames.items():
-                other = destinations.get(destination)
-                if other is not None and other != source:
-                    raise ValueError(
-                        f"Conflicting rename destination {destination}: {other} and {source}"
-                    )
-                destinations[destination] = source
+                content_edits.setdefault(Path(violation.file_path).absolute(), []).append(violation)
 
             # Validate all targets before touching any file.
             for source in content_edits:
@@ -314,9 +313,6 @@ class ConstitutionFixer:
 
             # Edits must use original paths; the path aliases are renamed afterwards.
             original_sources = set(content_edits) | set(renames)
-            ordered_renames = sorted(
-                renames.items(), key=lambda item: len(item[0].parts), reverse=True
-            )
             for source, violations in content_edits.items():
                 if self._apply_content_fix(source, violations, dry_run, interactive):
                     modified.append(str(source))

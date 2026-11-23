@@ -224,6 +224,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
 @handle_scan_errors
 def cmd_fix(args: argparse.Namespace) -> int:
     """Execute fix command (apply fixes)."""
+    if Path(args.path).is_symlink():
+        print(f"Refusing symlink input: {args.path}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
     path = validate_and_resolve_path(args.path)
     scanner = ConstitutionScanner()
     fixer = ConstitutionFixer(path)
@@ -439,6 +442,19 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             cwd=root,
             capture_output=True,
         )
+        # No-op fix: Git has no diff for these paths once staged. Do not make
+        # an empty commit or treat this as a failed operation.
+        index_changed = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+                [git_executable, "diff", "--cached", "--name-only", "-z", "HEAD"], cwd=root
+            )
+            .decode("utf-8", "surrogateescape")
+            .split("\0")
+        )
+        if not (index_changed & paths_to_commit):
+            print("No tracked differences remain after fixing.")
+            return EXIT_SUCCESS
+
         # --only excludes unrelated user changes already staged in the index.
         subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
             [git_executable, "commit", "--only", "-m", commit_msg, *pathspec_args],
@@ -454,72 +470,122 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
         return EXIT_EXECUTION_ERROR
 
 
-def _preflight_commit_destinations(path: Path, plan: FixPlan) -> int:
-    """Refuse ignored rename targets before writing files or staging Git changes."""
+def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: ConstitutionFixer) -> int:
+    """Validate all tracked rename destinations before changing files or index.
+
+    One canonical rename sequence is shared with the fixer and commit step.
+    Only existing HEAD-and-index leaf sources are eligible for auto-commit.
+    """
     git_executable = shutil.which("git")
     if git_executable is None:
         print("Git executable not found", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
     cwd = path if path.is_dir() else path.parent
-    root_result = subprocess.run(  # nosec B603 - fixed Git command, no shell
-        [git_executable, "rev-parse", "--show-toplevel"],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if root_result.returncode != 0:
-        print("Cannot commit outside a Git repository", file=sys.stderr)
-        return EXIT_EXECUTION_ERROR
-    root = Path(root_result.stdout.strip()).resolve()
-    scan_root = cwd.resolve()
-    tracked = (
-        subprocess.check_output(  # nosec B603 - fixed Git command
-            [git_executable, "ls-files", "--cached", "-z"], cwd=root
+    try:
+        root = Path(
+            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+                [git_executable, "rev-parse", "--show-toplevel"], cwd=cwd, text=True
+            ).strip()
+        ).resolve()
+        head_probe = subprocess.run(  # nosec B603 - fixed Git argv
+            [git_executable, "rev-parse", "--verify", "--quiet", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            check=False,
         )
-        .decode("utf-8", errors="surrogateescape")
-        .split("\0")
-    )
-
-    for violation in plan.violations:
-        if violation.violation_type not in (
-            ViolationType.DIRECTORY_ALIAS,
-            ViolationType.FILE_ALIAS,
-        ):
-            continue
-        if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
-            if violation.column is None:
-                continue
-            match_end = violation.column + len(violation.match)
-            source = Path(violation.file_path[:match_end].rstrip("/" + chr(92))).absolute()
+        if head_probe.returncode == 0:
+            head_paths = set(
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
+                )
+                .decode("utf-8", "surrogateescape")
+                .split("\0")
+            )
         else:
-            source = Path(violation.file_path).absolute()
-        destination = source.with_name(violation.suggestion.rstrip("/" + chr(92)))
-        if not source.is_relative_to(scan_root) or not destination.is_relative_to(scan_root):
-            continue
-
-        candidates = [str(destination)]
-        if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
-            candidates.append(str(destination) + "/")
-            for tracked_name in tracked:
-                if not tracked_name:
-                    continue
-                original = root / tracked_name
-                if original.is_relative_to(source):
-                    candidates.append(str(destination / original.relative_to(source)))
-        for candidate in set(candidates):
-            check = subprocess.run(  # nosec B603 - fixed Git command
-                [git_executable, "check-ignore", "--quiet", "--no-index", "--", candidate],
+            unborn = subprocess.run(  # nosec B603 - fixed Git argv
+                [git_executable, "symbolic-ref", "--quiet", "HEAD"],
                 cwd=root,
                 capture_output=True,
                 check=False,
             )
-            if check.returncode == 0:
-                print(f"Refusing commit: ignored rename destination {candidate}", file=sys.stderr)
+            if unborn.returncode:
+                print("Unable to inspect Git HEAD", file=sys.stderr)
                 return EXIT_EXECUTION_ERROR
-            if check.returncode != 1:
-                print(f"Git ignore check failed for {candidate}", file=sys.stderr)
+            head_paths = set()
+        index_paths = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv
+                [git_executable, "ls-files", "--cached", "-z"], cwd=root
+            )
+            .decode("utf-8", "surrogateescape")
+            .split("\0")
+        )
+        ordered_renames = fixer.planned_path_renames(plan)
+        # An ignored untracked-only alias does not block a tracked content fix.
+        eligible = head_paths & index_paths
+        destinations: set[str] = set()
+        for original_name in eligible:
+            if not original_name:
+                continue
+            original = root / original_name
+            if not any(
+                original == src or original.is_relative_to(src) for src, _ in ordered_renames
+            ):
+                continue
+            # Previous unrelated deletions do not belong in this auto-commit.
+            if not original.exists() and not original.is_symlink():
+                continue
+            if original.is_symlink() or not original.is_file():
+                print(
+                    f"Refusing commit: tracked rename source is not a regular file: {original}",
+                    file=sys.stderr,
+                )
                 return EXIT_EXECUTION_ERROR
+
+            final = original
+            for src, dst in ordered_renames:
+                if final == src or final.is_relative_to(src):
+                    final = dst / final.relative_to(src)
+            if final == original:
+                continue
+            try:
+                final_name = str(final.relative_to(root))
+            except ValueError:
+                print(f"Refusing commit: path escapes Git repository: {final}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+            # A staged addition or old tracked destination must never be overwritten,
+            # even when absent from the working tree.
+            if final_name in head_paths or final_name in index_paths:
+                print(
+                    f"Refusing commit: rename destination exists in Git index/HEAD: {final_name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            destinations.add(final_name)
+
+        if destinations:
+            stdin_paths = b"".join(
+                name.encode("utf-8", "surrogateescape") + b"\0" for name in sorted(destinations)
+            )
+            ignored = subprocess.run(  # nosec B603 - single batched read-only check
+                [git_executable, "check-ignore", "--no-index", "--stdin", "-z"],
+                input=stdin_paths,
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if ignored.returncode == 0:
+                values = ignored.stdout.decode("utf-8", "surrogateescape")
+                print(
+                    f"Refusing commit: ignored rename destinations: {values!r}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            if ignored.returncode != 1:
+                print(f"Git ignore check failed: {ignored.stderr!r}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+    except (OSError, subprocess.CalledProcessError, ValueError, PathSecurityError) as exc:
+        print(f"Commit preflight failed: {exc}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
     return EXIT_SUCCESS
 
 
@@ -532,6 +598,9 @@ def cmd_run_all(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return EXIT_VALIDATION_ERROR
+    if Path(args.path).is_symlink():
+        print(f"Refusing symlink input: {args.path}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
     path = validate_and_resolve_path(args.path)
     scanner = ConstitutionScanner()
     fixer = ConstitutionFixer(path)
@@ -550,7 +619,7 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Commit preflight must precede every content edit and path rename.
     if args.commit and not args.dry_run:
-        preflight_code = _preflight_commit_destinations(path, plan)
+        preflight_code = _preflight_commit_destinations(path, plan, fixer)
         if preflight_code != EXIT_SUCCESS:
             return preflight_code
 

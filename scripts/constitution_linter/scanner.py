@@ -7,6 +7,7 @@ Scans files and directories for model neutrality violations.
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING, Final
 
 from .patterns import compile_pattern, get_default_patterns, get_violation_type
@@ -253,6 +254,12 @@ class ConstitutionScanner:
         # Require a whole path component, never a suffix of an ordinary name.
         violation_type = get_violation_type(pattern)
         for match in compiled.finditer(full_path):
+            # On POSIX a backslash is a filename character, not a separator.
+            # Use the native path separator for both sides of alias components.
+            if violation_type == ViolationType.DIRECTORY_ALIAS and not match.group().endswith(
+                os.sep
+            ):
+                continue
             # A file alias must match the complete basename, not .cursorrules.local
             # or a directory named .cursorrules.
             if violation_type == ViolationType.FILE_ALIAS and match.end() != len(full_path):
@@ -260,7 +267,7 @@ class ConstitutionScanner:
             if (
                 violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
                 and match.start() > 0
-                and full_path[match.start() - 1] not in ("/", chr(92))
+                and full_path[match.start() - 1] != os.sep
             ):
                 continue
             violations.append(

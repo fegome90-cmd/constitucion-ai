@@ -366,7 +366,8 @@ def test_commit_refuses_directory_substituted_for_tracked_file(tmp_path: Path) -
     assert main(["run-all", str(tmp_path), "--commit"]) == 4
     assert _git(tmp_path, "rev-parse", "HEAD") == before
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
-    assert (tmp_path / ".ai" / "leaf" / "private.txt").read_text() == "secret local data\n"
+    assert (tmp_path / ".claude" / "leaf" / "private.txt").read_text() == "secret local data\n"
+    assert not (tmp_path / ".ai").exists()
 
 
 def test_commit_preserves_explicit_staged_untracking(tmp_path: Path) -> None:
@@ -702,3 +703,106 @@ def test_large_rename_commit_stages_only_tracked_leaves(tmp_path: Path) -> None:
     assert len(_git(tmp_path, "ls-files").splitlines()) == 80
     assert (tmp_path / ".ai" / "private.txt").read_text() == "untracked private\n"
     assert _git(tmp_path, "status", "--porcelain") == "?? .ai/private.txt"
+
+
+def test_staged_rename_destination_is_not_overwritten(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    source = tmp_path / ".cursorrules"
+    source.write_text("baseline source\n")
+    _git(tmp_path, "add", "--", ".cursorrules")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    previous_head = _git(tmp_path, "rev-parse", "HEAD")
+    destination = tmp_path / ".airules"
+    destination.write_text("precious staged change\n")
+    _git(tmp_path, "add", "--", ".airules")
+    destination.unlink()
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert source.read_text() == "baseline source\n"
+    assert not destination.exists()
+    assert _git(tmp_path, "show", ":.airules") == "precious staged change"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ".airules"
+    assert _git(tmp_path, "rev-parse", "HEAD") == previous_head
+
+
+def test_nested_ignored_final_destination_rejected_before_rename(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    source = tmp_path / ".claude"
+    source.mkdir()
+    (source / ".cursorrules").write_text("neutral\n")
+    (tmp_path / ".gitignore").write_text("/.ai/.airules\n")
+    _git(tmp_path, "add", "--", ".claude/.cursorrules", ".gitignore")
+    _git(tmp_path, "commit", "-qm", "baseline")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (source / ".cursorrules").is_file()
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_direct_symlink_fix_and_run_all_rejected_before_following(tmp_path: Path) -> None:
+    target = tmp_path / "original.md"
+    target.write_text("Claude in original\n")
+    link = tmp_path / "link.md"
+    link.symlink_to(target)
+    assert main(["fix", str(link)]) != 0
+    assert target.read_text() == "Claude in original\n"
+    assert link.is_symlink()
+    assert main(["run-all", str(link), "--commit"]) != 0
+    assert target.read_text() == "Claude in original\n"
+
+
+def test_backslash_is_not_path_separator_on_posix(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    target = tmp_path / "notes\\.cursorrules"
+    target.write_text("neutral\n")
+    assert ConstitutionScanner().scan_path(target).passed
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == "neutral\n"
+    assert not (tmp_path / ".airules").exists()
+
+
+def test_untracked_ignored_alias_does_not_block_tracked_content_commit(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    tracked = tmp_path / "tracked.md"
+    tracked.write_text("baseline\n")
+    (tmp_path / ".gitignore").write_text(".ai/\n")
+    _git(tmp_path, "add", "--", "tracked.md", ".gitignore")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    tracked.write_text("Claude\n")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "untracked.md").write_text("neutral\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert tracked.read_text() == "AI\n"
+    assert _git(tmp_path, "show", "--pretty=", "--name-only", "HEAD") == "tracked.md"
+    assert (tmp_path / ".ai" / "untracked.md").read_text() == "neutral\n"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_commit_with_no_resulting_diff_is_success(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("AI\n")
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude\n")
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_text() == "AI\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "status", "--porcelain") == ""
