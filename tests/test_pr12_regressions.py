@@ -1313,3 +1313,30 @@ def test_untracked_attrs_alias_and_prior_deleted_tracked_leaf_do_not_block(tmp_p
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
     assert _git(tmp_path, "diff", "--name-only") == ".claude/gone.md"
     assert _git(tmp_path, "ls-files") == ".claude/gone.md"
+
+
+def test_renamed_untracked_leaf_cannot_resurrect_deleted_tracked_blob(tmp_path: Path) -> None:
+    """Eligibility is frozen before the rename, not inferred from its destination."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    old = alias / ".airules"
+    old.write_text("tracked old content\n")
+    _git(tmp_path, "add", "--", ".claude/.airules")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    head_before = _git(tmp_path, "rev-parse", "HEAD")
+    old.unlink()
+    (alias / ".cursorrules").write_text("untracked private content\n")
+    attributes = tmp_path / ".gitattributes"
+    attributes.write_text("# Claude\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert attributes.read_text() == "# AI\n"
+    assert (tmp_path / ".ai" / ".airules").read_text() == "untracked private content\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == head_before
+    assert _git(tmp_path, "show", "HEAD:.claude/.airules") == "tracked old content"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "diff", "--name-only") == ".claude/.airules"
+    assert _git(tmp_path, "ls-files") == ".claude/.airules"

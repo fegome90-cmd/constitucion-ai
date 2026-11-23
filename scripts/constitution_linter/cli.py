@@ -321,7 +321,9 @@ def _run_fix_step(
     return fix_result
 
 
-def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
+def _run_commit_step(
+    path: Path, plan: FixPlan, fix_result: FixResult, eligible_sources: frozenset[str]
+) -> int:
     """Commit changes to existing tracked files, never unrelated local additions."""
     if not fix_result.files_modified:
         return EXIT_SUCCESS
@@ -399,7 +401,7 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
 
         paths_to_commit: set[str] = set()
         for name in head_files:
-            if not name or name not in index_files:
+            if not name or name not in index_files or name not in eligible_sources:
                 continue
             original = root / name
             if original not in content_sources and not any(
@@ -476,7 +478,11 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
 
 
 def _preflight_commit_destinations(
-    path: Path, plan: FixPlan, fixer: ConstitutionFixer, interactive: bool = False
+    path: Path,
+    plan: FixPlan,
+    fixer: ConstitutionFixer,
+    eligible_sources: set[str],
+    interactive: bool = False,
 ) -> int:
     """Validate all tracked rename destinations before changing files or index.
 
@@ -527,6 +533,25 @@ def _preflight_commit_destinations(
             .split("\0")
         )
         ordered_renames = fixer.planned_path_renames(plan)
+        content_sources = {
+            Path(v.file_path).absolute() for v in plan.violations if v.line is not None
+        }
+        # Freeze the only eligible *original* paths before any fixer mutation.
+        # A tracked-but-deleted file may later be occupied by an untracked
+        # nested rename; it must never become eligible retroactively.
+        for name in head_paths & index_paths:
+            if not name:
+                continue
+            original = root / name
+            if not (
+                original in content_sources
+                or any(
+                    original == src or original.is_relative_to(src) for src, _ in ordered_renames
+                )
+            ):
+                continue
+            if original.is_file() and not original.is_symlink():
+                eligible_sources.add(name)
         staged_paths = (
             set(
                 subprocess.check_output(  # nosec B603 - fixed Git argv
@@ -539,9 +564,6 @@ def _preflight_commit_destinations(
             if head_paths
             else index_paths
         )
-        content_sources = {
-            Path(v.file_path).absolute() for v in plan.violations if v.line is not None
-        }
         # Never overwrite a staged change, even when the fix is a no-op.
         for staged_name in staged_paths:
             # git rm --cached leaves a local file deliberately untracked.
@@ -565,29 +587,14 @@ def _preflight_commit_destinations(
             v.line is not None and Path(v.file_path).name.casefold() == ".gitattributes"
             for v in plan.violations
         )
-        # A source absent from the worktree was deleted before this scan.
-        # It cannot be staged by the fixer, and is not a reason to block
-        # unrelated untracked-only corrections. Avoid the scan entirely
-        # when no attributes file is being edited.
-        if attributes_edit:
-            commit_has_tracked_source = any(
-                ((root / name).exists() or (root / name).is_symlink())
-                and (
-                    (root / name) in content_sources
-                    or any(
-                        (root / name) == src or (root / name).is_relative_to(src)
-                        for src, _ in ordered_renames
-                    )
-                )
-                for name in (head_paths & index_paths)
-                if name
+        # Only pre-mutation eligible tracked sources can enter the commit.
+        # Deleted files and untracked-only corrections do not trigger this gate.
+        if attributes_edit and eligible_sources:
+            print(
+                "Refusing commit: plan edits .gitattributes",
+                file=sys.stderr,
             )
-            if commit_has_tracked_source:
-                print(
-                    "Refusing commit: plan edits .gitattributes",
-                    file=sys.stderr,
-                )
-                return EXIT_EXECUTION_ERROR
+            return EXIT_EXECUTION_ERROR
 
         # Ignore patterns edited by this same plan can alter path eligibility
         # after a rename. Manual staging is required for this ambiguous case.
@@ -688,7 +695,7 @@ def _preflight_commit_destinations(
         # HEAD paths also protect user-staged deletions of old destinations.
         occupied = head_paths | index_paths
         occupied_sorted = sorted(occupied)
-        eligible = head_paths & index_paths
+        eligible = eligible_sources
         destinations: set[str] = set()
         active_directory_sources: set[Path] = set()
         for original_name in eligible:
@@ -806,10 +813,11 @@ def cmd_run_all(args: argparse.Namespace) -> int:
     # Step 2: Plan
     plan = _run_plan_step(fixer, result, reporter)
 
-    # Commit preflight must precede every content edit and path rename.
+    # Freeze tracked source eligibility before any rename/content mutation.
+    eligible_sources: set[str] = set()
     if args.commit and not args.dry_run:
         preflight_code = _preflight_commit_destinations(
-            path, plan, fixer, interactive=args.interactive
+            path, plan, fixer, eligible_sources, interactive=args.interactive
         )
         if preflight_code != EXIT_SUCCESS:
             return preflight_code
@@ -828,7 +836,7 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Step 5: Commit (if requested)
     if args.commit and not args.dry_run:
-        return _run_commit_step(path, plan, fix_result)
+        return _run_commit_step(path, plan, fix_result, frozenset(eligible_sources))
 
     return EXIT_SUCCESS
 
