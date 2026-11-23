@@ -10,7 +10,8 @@ import argparse
 import functools
 import logging
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404 - controlled Git commands, no shell invocation
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypeVar, cast
@@ -23,7 +24,7 @@ from .types import MAX_CONTEXT_LENGTH
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .types import FixPlan, ScanResult
+    from .types import FixPlan, FixResult, ScanResult
 
 # =============================================================================
 # LOGGING SETUP
@@ -297,8 +298,8 @@ def _run_fix_step(
     plan: FixPlan,
     args: argparse.Namespace,
     reporter: Reporter,
-) -> int:
-    """Run fix step and return exit code."""
+) -> FixResult:
+    """Run fix step and return the paths actually changed."""
     print("\nStep 3: Applying fixes...")
     fix_result = fixer.apply_plan(
         plan,
@@ -308,42 +309,54 @@ def _run_fix_step(
     )
     print(reporter.report_fix(fix_result, format="text"))
 
-    if not fix_result.success:
-        return EXIT_EXECUTION_ERROR
-    return EXIT_SUCCESS
+    return fix_result
 
 
-def _run_commit_step(path: Path, plan: FixPlan) -> int:
-    """Run commit step and return exit code."""
+def _run_commit_step(path: Path, plan: FixPlan, files_modified: tuple[str, ...]) -> int:
+    """Commit exactly the fixer output; keep unrelated staged work untouched."""
+    if not files_modified:
+        return EXIT_SUCCESS
     print("\nStep 4: Creating git commit...")
 
-    # SEG-003: Build and sanitize commit message
     commit_msg_lines = ["fix(constitution): apply model neutrality fixes", ""]
     for v in plan.violations[:MAX_COMMIT_VIOLATIONS]:
         line = f"- {v.pattern.rule_id}: {v.match} → {v.suggestion}"
         commit_msg_lines.append(sanitize_commit_message(line))
-
     commit_msg = "\n".join(commit_msg_lines)
 
     try:
-        subprocess.run(
-            ["git", "add", "-A"],
+        cwd = path if path.is_dir() else path.parent
+        git_executable = shutil.which("git")
+        if git_executable is None:
+            raise FileNotFoundError("Git executable not found")
+        root = Path(
+            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+                [git_executable, "rev-parse", "--show-toplevel"], cwd=cwd, text=True
+            ).strip()
+        )
+        paths = list(
+            dict.fromkeys(str(Path(name).resolve().relative_to(root)) for name in files_modified)
+        )
+        # Explicitly stage renames and deletions, never unrelated user paths.
+        subprocess.run(  # nosec B603 - verified paths after --, no shell
+            [git_executable, "add", "-A", "--", *paths],
             check=True,
-            cwd=path,
+            cwd=root,
             capture_output=True,
             text=True,
         )
-        subprocess.run(
-            ["git", "commit", "-m", commit_msg],
+        # --only ignores unrelated staged changes already present in the index.
+        subprocess.run(  # nosec B603 - fixed Git argv, no shell
+            [git_executable, "commit", "--only", "-m", commit_msg, "--", *paths],
             check=True,
-            cwd=path,
+            cwd=root,
             capture_output=True,
             text=True,
         )
         print("✅ Commit created successfully")
         return EXIT_SUCCESS
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git commit failed: {e.stderr or e}", file=sys.stderr)
+    except (subprocess.CalledProcessError, OSError, ValueError) as e:
+        print(f"❌ Git commit failed: {getattr(e, 'stderr', None) or e}", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
 
 
@@ -374,13 +387,13 @@ def cmd_run_all(args: argparse.Namespace) -> int:
             return EXIT_SUCCESS
 
     # Step 4: Fix
-    fix_exit_code = _run_fix_step(fixer, plan, args, reporter)
-    if fix_exit_code != EXIT_SUCCESS:
-        return fix_exit_code
+    fix_result = _run_fix_step(fixer, plan, args, reporter)
+    if not fix_result.success:
+        return EXIT_EXECUTION_ERROR
 
     # Step 5: Commit (if requested)
     if args.commit and not args.dry_run:
-        return _run_commit_step(path, plan)
+        return _run_commit_step(path, plan, fix_result.files_modified)
 
     return EXIT_SUCCESS
 
@@ -537,6 +550,16 @@ Exit Codes:
         help="Create git commit after fixes",
     )
     run_all_parser.set_defaults(func=cmd_run_all)
+
+    # Match the documented CLI: output flags also work after a subcommand.
+    for command_parser in (scan_parser, plan_parser, fix_parser, run_all_parser):
+        command_parser.add_argument(
+            "--format", choices=["text", "json", "table"], default=argparse.SUPPRESS
+        )
+        command_parser.add_argument("--no-color", action="store_true", default=argparse.SUPPRESS)
+        command_parser.add_argument(
+            "--verbose", "-v", action="store_true", default=argparse.SUPPRESS
+        )
 
     return parser
 

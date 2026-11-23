@@ -72,7 +72,6 @@ Para usar esta constitución en un proyecto:
 ## Versionado
 
 - **v1.1** (actual) - `constitution/AGENTIC-CONSTITUTION.md`
-- **v1.0** (archivada) - `archive/v1.0-AGENTIC-CONSTITUTION.md`
 - **v0.7** (archivada) - `archive/v0.7-AGENTIC-CONSTITUTION.md`
 
 ## Autoridades de Aprobación
