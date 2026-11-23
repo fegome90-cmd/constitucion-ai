@@ -561,10 +561,22 @@ def _preflight_commit_destinations(
         # The plan can rewrite .gitattributes and change clean filters
         # after preflight; the resulting commit cannot be validated against
         # the original attribute rules. Require explicit manual staging.
-        if any(
-            v.line is not None and Path(v.file_path).name == ".gitattributes"
+        attributes_edit = any(
+            v.line is not None and Path(v.file_path).name.casefold() == ".gitattributes"
             for v in plan.violations
-        ):
+        )
+        # A file that will never be staged cannot affect the automatic
+        # commit. Keep the existing untracked-only fix behavior.
+        commit_has_tracked_source = any(
+            (root / name) in content_sources
+            or any(
+                (root / name) == src or (root / name).is_relative_to(src)
+                for src, _ in ordered_renames
+            )
+            for name in (head_paths & index_paths)
+            if name
+        )
+        if attributes_edit and commit_has_tracked_source:
             print(
                 "Refusing commit: plan edits .gitattributes",
                 file=sys.stderr,

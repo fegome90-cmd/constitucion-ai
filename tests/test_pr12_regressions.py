@@ -1239,10 +1239,50 @@ def test_autocommit_respects_git_core_filemode_false(tmp_path: Path) -> None:
     _git(tmp_path, "config", "core.fileMode", "false")
     original_head = _git(tmp_path, "rev-parse", "HEAD")
     target.write_text("Claude\n")
-    target.chmod(0o655)
+    target.chmod(0o644)
 
     assert main(["run-all", str(tmp_path), "--commit"]) == 0
     assert target.read_text() == "AI\n"
     assert _git(tmp_path, "rev-parse", "HEAD") == original_head
     assert _git(tmp_path, "ls-files", "-s").startswith("100755 ")
     assert _git(tmp_path, "status", "--porcelain") == ""
+
+
+def test_case_variant_gitattributes_rejected_before_rename(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    attrs = tmp_path / ".GITATTRIBUTES"
+    attrs.write_text("*.md filter=Claude\n")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    previous_head = _git(tmp_path, "rev-parse", "HEAD")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert attrs.read_text() == "*.md filter=Claude\n"
+    assert (directory / "note.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "rev-parse", "HEAD") == previous_head
+
+
+def test_untracked_only_gitattributes_may_fix_without_creating_commit(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    attrs = tmp_path / ".gitattributes"
+    attrs.write_text("# Claude\n")
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert attrs.read_text() == "# AI\n"
+    assert _git(tmp_path, "ls-files") == ""
+    assert (
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "--verify", "HEAD"],
+            check=False,
+            capture_output=True,
+        ).returncode
+        != 0
+    )
