@@ -267,3 +267,81 @@ def test_literal_wildcard_filename_not_a_commit_glob(tmp_path: Path) -> None:
     assert main(["run-all", str(tmp_path), "--commit"]) == 0
     assert _git(tmp_path, "show", "--pretty=", "--name-only", "HEAD") == "*.md"
     assert _git(tmp_path, "diff", "--cached", "--name-only") == "notes.md"
+
+
+def test_directory_rename_commit_excludes_untracked_descendants(tmp_path: Path) -> None:
+    """Commit a tracked rename without absorbing a local untracked sibling."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "tracked.md").write_text("neutral content\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", ".claude/tracked.md")
+    _git(tmp_path, "commit", "-qm", "initial")
+    (alias / "private-notes.txt").write_text("personal local note\n", encoding="utf-8")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (tmp_path / ".ai" / "tracked.md").read_text() == "neutral content\n"
+    assert (tmp_path / ".ai" / "private-notes.txt").read_text() == "personal local note\n"
+    committed = _git(tmp_path, "show", "--no-renames", "--pretty=", "--name-only", "HEAD")
+    assert committed.splitlines() == [".ai/tracked.md", ".claude/tracked.md"]
+    assert "private-notes" not in committed
+    assert _git(tmp_path, "ls-files") == ".ai/tracked.md"
+    assert _git(tmp_path, "status", "--porcelain") == "?? .ai/private-notes.txt"
+
+
+def test_untracked_directory_rename_does_not_create_commit(tmp_path: Path) -> None:
+    """Missing original is never used as Git pathspec when it was untracked."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / "baseline.md").write_text("clean baseline\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", "baseline.md")
+    _git(tmp_path, "commit", "-qm", "initial")
+    previous_head = _git(tmp_path, "rev-parse", "HEAD")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "local.md").write_text("local content\n", encoding="utf-8")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (tmp_path / ".ai" / "local.md").read_text() == "local content\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == previous_head
+    assert _git(tmp_path, "status", "--porcelain") == "?? .ai/"
+
+
+def test_untracked_content_fix_stays_untracked_on_auto_commit(tmp_path: Path) -> None:
+    """Do not silently add a new file even if the fixer edits its content."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / "baseline.md").write_text("clean\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", "baseline.md")
+    _git(tmp_path, "commit", "-qm", "initial")
+    previous_head = _git(tmp_path, "rev-parse", "HEAD")
+    new_file = tmp_path / "notes.md"
+    new_file.write_text("Claude note\n", encoding="utf-8")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert new_file.read_text() == "AI note\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == previous_head
+    assert _git(tmp_path, "status", "--porcelain") == "?? notes.md"
+
+
+def test_nested_rename_commit_excludes_untracked_sibling(tmp_path: Path) -> None:
+    """Nested file and directory rename may not stage new siblings."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / ".cursorrules").write_text("neutral rules\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", ".claude/.cursorrules")
+    _git(tmp_path, "commit", "-qm", "initial")
+    (alias / "local.md").write_text("untracked private\n", encoding="utf-8")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (tmp_path / ".ai" / ".airules").read_text() == "neutral rules\n"
+    assert (tmp_path / ".ai" / "local.md").read_text() == "untracked private\n"
+    assert _git(tmp_path, "ls-files") == ".ai/.airules"
+    assert _git(tmp_path, "status", "--porcelain") == "?? .ai/local.md"

@@ -121,7 +121,12 @@ uv run constitution-linter fix .
 
 # Ejecutar todo (scan + plan + fix)
 uv run constitution-linter run-all .
+
+# Crear un commit de los archivos ya versionados que hayan sido corregidos
+uv run constitution-linter run-all . --commit
 ```
+
+`--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Revisa los cambios antes de usarlo; los archivos locales sin seguimiento permanecen fuera del commit automático.
 
 #### Códigos de Salida
 

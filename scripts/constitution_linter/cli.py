@@ -312,43 +312,77 @@ def _run_fix_step(
     return fix_result
 
 
-def _run_commit_step(path: Path, plan: FixPlan, files_modified: tuple[str, ...]) -> int:
-    """Commit exactly the fixer output; keep unrelated staged work untouched."""
-    if not files_modified:
+def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
+    """Commit changes to existing tracked files, never unrelated local additions."""
+    if not fix_result.files_modified:
         return EXIT_SUCCESS
+
+    commit_lines = ["fix(constitution): apply model neutrality fixes", ""]
+    for violation in plan.violations[:MAX_COMMIT_VIOLATIONS]:
+        line = f"- {violation.pattern.rule_id}: {violation.match} → {violation.suggestion}"
+        commit_lines.append(sanitize_commit_message(line))
+    commit_msg = "\n".join(commit_lines)
+
     print("\nStep 4: Creating git commit...")
-
-    commit_msg_lines = ["fix(constitution): apply model neutrality fixes", ""]
-    for v in plan.violations[:MAX_COMMIT_VIOLATIONS]:
-        line = f"- {v.pattern.rule_id}: {v.match} → {v.suggestion}"
-        commit_msg_lines.append(sanitize_commit_message(line))
-    commit_msg = "\n".join(commit_msg_lines)
-
     try:
         cwd = path if path.is_dir() else path.parent
         git_executable = shutil.which("git")
         if git_executable is None:
             raise FileNotFoundError("Git executable not found")
         root = Path(
-            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+            subprocess.check_output(  # nosec B603 - controlled argv, no shell
                 [git_executable, "rev-parse", "--show-toplevel"], cwd=cwd, text=True
             ).strip()
-        )
-        paths = list(
-            dict.fromkeys(
-                f":(literal){Path(name).resolve().relative_to(root)}" for name in files_modified
+        ).resolve()
+
+        # The HEAD tree is the pre-operation authority for tracked files.
+        # Index-only additions (staged user files) must not join an automatic commit.
+        head_files = (
+            subprocess.check_output(  # nosec B603 - controlled argv, no shell
+                [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
             )
+            .decode("utf-8", errors="surrogateescape")
+            .split("\0")
         )
-        # Explicitly stage renames and deletions, never unrelated user paths.
-        subprocess.run(  # nosec B603 - verified paths after --, no shell
+        touched = {Path(name) for name in fix_result.files_modified}
+        renames = [(Path(src), Path(dst)) for src, dst in fix_result.path_renames]
+
+        paths_to_commit: set[str] = set()
+        for name in head_files:
+            if not name:
+                continue
+            original = root / name
+            if not any(
+                original == modified or original.is_relative_to(modified) for modified in touched
+            ):
+                continue
+
+            final = original
+            for source, destination in renames:
+                if final == source or final.is_relative_to(source):
+                    final = destination / final.relative_to(source)
+
+            # A vanished original still needs its deletion staged if it was tracked.
+            paths_to_commit.add(str(original.relative_to(root)))
+            if not final.exists() and not final.is_symlink():
+                raise FileNotFoundError(f"Tracked fix target missing: {final}")
+            paths_to_commit.add(str(final.relative_to(root)))
+
+        if not paths_to_commit:
+            print("No tracked fixes to commit; untracked files remain untracked.")
+            return EXIT_SUCCESS
+
+        paths = [f":(literal){name}" for name in sorted(paths_to_commit)]
+        # Explicit leaf files only: directory pathspecs absorb untracked siblings.
+        subprocess.run(  # nosec B603 - literal paths and fixed argv, no shell
             [git_executable, "add", "-A", "--", *paths],
             check=True,
             cwd=root,
             capture_output=True,
             text=True,
         )
-        # --only ignores unrelated staged changes already present in the index.
-        subprocess.run(  # nosec B603 - fixed Git argv, no shell
+        # --only prevents previously staged unrelated changes from entering the commit.
+        subprocess.run(  # nosec B603 - literal paths and fixed argv, no shell
             [git_executable, "commit", "--only", "-m", commit_msg, "--", *paths],
             check=True,
             cwd=root,
@@ -357,8 +391,8 @@ def _run_commit_step(path: Path, plan: FixPlan, files_modified: tuple[str, ...])
         )
         print("✅ Commit created successfully")
         return EXIT_SUCCESS
-    except (subprocess.CalledProcessError, OSError, ValueError) as e:
-        print(f"❌ Git commit failed: {getattr(e, 'stderr', None) or e}", file=sys.stderr)
+    except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+        print(f"❌ Git commit failed: {getattr(exc, 'stderr', None) or exc}", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
 
 
@@ -395,7 +429,7 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Step 5: Commit (if requested)
     if args.commit and not args.dry_run:
-        return _run_commit_step(path, plan, fix_result.files_modified)
+        return _run_commit_step(path, plan, fix_result)
 
     return EXIT_SUCCESS
 

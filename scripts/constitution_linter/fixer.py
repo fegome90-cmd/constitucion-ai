@@ -329,6 +329,7 @@ class ConstitutionFixer:
             files_modified=tuple(dict.fromkeys(modified)),
             success=True,
             error_message=None,
+            path_renames=tuple((str(src), str(dst)) for src, dst in ordered_renames),
         )
 
     def _apply_path_fix(self, source: Path, destination: Path, dry_run: bool) -> bool:
