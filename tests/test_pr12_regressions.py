@@ -1377,35 +1377,41 @@ def test_directory_autocommit_rejects_tracked_symlink_before_any_move(
 def test_directory_autocommit_rejects_git_symlink_mode_checked_out_as_regular_file(
     tmp_path: Path,
 ) -> None:
-    """core.symlinks=false can represent a 120000 Git entry as a regular file."""
-    import os
-
-    if os.name == "nt":
-        return
-
+    """Simulate a 120000 Git symlink as a regular file without OS symlinks."""
     _git(tmp_path, "init", "-q")
     _git(tmp_path, "config", "user.email", "test@example.invalid")
     _git(tmp_path, "config", "user.name", "Test Runner")
+    _git(tmp_path, "config", "core.symlinks", "false")
     alias = tmp_path / ".claude"
     alias.mkdir()
-    (alias / "note.md").write_text("neutral content\n", encoding="utf-8")
+    (alias / "note.md").write_text("neutral content\\n", encoding="utf-8")
     link = alias / "link"
-    link.symlink_to("note.md")
-    _git(tmp_path, "add", "--", ".claude/note.md", ".claude/link")
+    link.write_text("note.md", encoding="utf-8")
+
+    _git(tmp_path, "add", "--", ".claude/note.md")
+    link_oid = (
+        subprocess.check_output(
+            ["git", "-C", str(tmp_path), "hash-object", "-w", "--stdin"],
+            input=b"note.md",
+        )
+        .decode()
+        .strip()
+    )
+    _git(
+        tmp_path,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        f"120000,{link_oid},.claude/link",
+    )
     _git(tmp_path, "commit", "-qm", "baseline")
     original_head = _git(tmp_path, "rev-parse", "HEAD")
     assert _git(tmp_path, "ls-files", "-s", "--", ".claude/link").startswith("120000 ")
-
-    # Reproduce Windows/macOS filesystem behavior where Git stores symlink mode
-    # but the checkout is an ordinary file containing the link target.
-    _git(tmp_path, "config", "core.symlinks", "false")
-    link.unlink()
-    link.write_text("note.md", encoding="utf-8")
     assert link.is_file() and not link.is_symlink()
 
     assert main(["run-all", str(tmp_path), "--commit"]) == 4
     assert _git(tmp_path, "rev-parse", "HEAD") == original_head
-    assert (alias / "note.md").read_text() == "neutral content\n"
+    assert (alias / "note.md").read_text() == "neutral content\\n"
     assert link.read_text() == "note.md"
     assert not (tmp_path / ".ai").exists()
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
@@ -1443,11 +1449,19 @@ def test_eligible_sibling_renames_without_resurrecting_deleted_tracked_blob(
     alias.mkdir()
     survivor = alias / "survivor.md"
     survivor.write_text("neutral survivor\n")
+    import os
+
+    if os.name != "nt":
+        survivor.chmod(0o755)
     previous = alias / ".airules"
     previous.write_text("old tracked rules\n")
     _git(tmp_path, "add", "--", ".claude/survivor.md", ".claude/.airules")
     _git(tmp_path, "commit", "-qm", "baseline")
     original_head = _git(tmp_path, "rev-parse", "HEAD")
+    original_tree_mode_and_oid = _git(
+        tmp_path, "ls-tree", "HEAD", "--", ".claude/survivor.md"
+    ).split("\t", 1)[0]
+    original_deleted_oid = _git(tmp_path, "rev-parse", "HEAD:.claude/.airules")
 
     previous.unlink()
     (alias / ".cursorrules").write_text("private untracked rules\n")
@@ -1455,6 +1469,12 @@ def test_eligible_sibling_renames_without_resurrecting_deleted_tracked_blob(
     assert main(["run-all", str(tmp_path), "--commit"]) == 0
     assert _git(tmp_path, "rev-parse", "HEAD") != original_head
     assert _git(tmp_path, "show", "HEAD:.ai/survivor.md") == "neutral survivor"
+    # Git tree identity proves both mode and exact blob bytes including final LF.
+    assert (
+        _git(tmp_path, "ls-tree", "HEAD", "--", ".ai/survivor.md").split("\t", 1)[0]
+        == original_tree_mode_and_oid
+    )
+    assert _git(tmp_path, "rev-parse", "HEAD:.claude/.airules") == original_deleted_oid
     assert _git(tmp_path, "show", "HEAD:.claude/.airules") == "old tracked rules"
     assert _git(
         tmp_path, "show", "--pretty=", "--no-renames", "--name-only", "HEAD"
