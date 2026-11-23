@@ -58,5 +58,18 @@ jobs:
         run: uv python install 3.13
       - name: Install locked project dependencies
         run: uv sync --frozen --python 3.13
-      - name: Test exported starter integrations (may access package registries)
-        run: uv run --frozen pytest tests/ -q
+      - name: Verify provisioned Python and Java runtimes
+        run: |
+          command -v uv
+          command -v java
+          command -v javac
+          command -v mvn
+          java -version
+          javac -version
+      - name: Test exported Python and Java starters (registry dependent)
+        run: >-
+          uv run --frozen pytest
+          tests/test_starters.py::test_scaffold_exports_self_contained_python_starter
+          tests/test_starters.py::test_scaffold_exports_self_contained_java_starter
+          tests/test_config_kits.py::test_apply_kit_delivers_a_working_python_project
+          tests/test_config_kits.py::test_apply_kit_delivers_a_working_java_project -q

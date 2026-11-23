@@ -242,13 +242,15 @@ class ConstitutionFixer:
                     # v.column indexes the complete path. Capture the matched directory,
                     # never a child file that happened to contain the directory alias.
                     end = violation.column + len(violation.match)
-                    source = Path(violation.file_path[:end].rstrip("/\\"))
+                    source = Path(violation.file_path[:end].rstrip("/\\")).resolve()
                     destination = source.with_name(violation.suggestion.rstrip("/\\"))
                 elif violation.violation_type == ViolationType.FILE_ALIAS:
-                    source = Path(violation.file_path)
+                    source = Path(violation.file_path).resolve()
                     destination = source.with_name(violation.suggestion.rstrip("/\\"))
                 else:
-                    content_edits.setdefault(Path(violation.file_path), []).append(violation)
+                    content_edits.setdefault(Path(violation.file_path).resolve(), []).append(
+                        violation
+                    )
                     continue
                 # An ancestor of the selected file/subtree is not in scope.
                 # Avoid renaming a parent outside the caller's requested root.
@@ -406,7 +408,13 @@ class ConstitutionFixer:
                     print(f"  Replace with: {violation.suggestion}")
                     if input("Apply? [y/N] ").lower() != "y":
                         continue
-                matched = compile_pattern(violation.pattern).match(original_line, start)
+                # The scanner matches the logical line without its CR/LF terminator.
+                logical_line = original_line
+                if logical_line.endswith("\r\n"):
+                    logical_line = logical_line[:-2]
+                elif logical_line.endswith(("\r", "\n")):
+                    logical_line = logical_line[:-1]
+                matched = compile_pattern(violation.pattern).match(logical_line, start)
                 if matched is None or matched.end() != end:
                     raise ValueError(f"Stale regex match at {file_path}:{line_index + 1}")
                 try:
@@ -449,7 +457,7 @@ class ConstitutionFixer:
 
         seen_renames: set[tuple[Path, Path]] = set()
         for filename, violations in sorted(by_file.items()):
-            path = Path(filename)
+            path = Path(filename).resolve()
             path_fixes = [
                 v
                 for v in violations
@@ -459,7 +467,7 @@ class ConstitutionFixer:
                 if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
                     assert violation.column is not None
                     end = violation.column + len(violation.match)
-                    source_path = Path(filename[:end].rstrip("/\\"))
+                    source_path = Path(filename[:end].rstrip("/\\")).resolve()
                 else:
                     source_path = path
                 destination = source_path.with_name(violation.suggestion.rstrip("/\\"))

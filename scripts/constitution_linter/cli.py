@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Final, TypeVar, cast
 from .fixer import ConstitutionFixer, PathSecurityError
 from .reporter import Reporter
 from .scanner import ConstitutionScanner
-from .types import MAX_CONTEXT_LENGTH
+from .types import MAX_CONTEXT_LENGTH, ViolationType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -374,9 +374,20 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             .decode("utf-8", errors="surrogateescape")
             .split("\0")
         )
-        touched = {Path(name) for name in fix_result.files_modified}
-        scanned_files = {Path(v.file_path) for v in plan.violations}
-        renames = [(Path(src), Path(dst)) for src, dst in fix_result.path_renames]
+        modified_paths = {Path(name).resolve() for name in fix_result.files_modified}
+        scanned_files = {Path(v.file_path).resolve() for v in plan.violations}
+        renames = [
+            (Path(src).resolve(), Path(dst).resolve()) for src, dst in fix_result.path_renames
+        ]
+        # Eligibility is determined by original sources only, never final destinations.
+        rename_sources = {source for source, _ in renames}
+        content_sources = {
+            Path(v.file_path).resolve()
+            for v in plan.violations
+            if v.violation_type not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+            and Path(v.file_path).resolve() in modified_paths
+        }
+        original_sources = rename_sources | content_sources
 
         paths_to_commit: set[str] = set()
         for name in head_files:
@@ -384,7 +395,7 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
                 continue
             original = root / name
             if not any(
-                original == modified or original.is_relative_to(modified) for modified in touched
+                original == source or original.is_relative_to(source) for source in original_sources
             ):
                 continue
 
@@ -433,6 +444,12 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
 @handle_scan_errors
 def cmd_run_all(args: argparse.Namespace) -> int:
     """Execute complete workflow (scan, plan, fix, commit)."""
+    if args.format != "text":
+        print(
+            "Error: run-all --format is not supported for non-text output.",
+            file=sys.stderr,
+        )
+        return EXIT_VALIDATION_ERROR
     path = validate_and_resolve_path(args.path)
     scanner = ConstitutionScanner()
     fixer = ConstitutionFixer(path)

@@ -492,7 +492,17 @@ def test_ci_separates_offline_checks_from_starter_smokes() -> None:
     integration = "\n".join(step.get("run", "") for step in jobs["starter-integration"]["steps"])
     assert "pytest tests/test_constitution_linter.py tests/test_pr12_regressions.py" in offline
     assert "pytest tests/ -q" not in offline
-    assert "pytest tests/ -q" in integration
+    # This lane explicitly verifies the two provisioned runtimes, not all ten.
+    assert "pytest tests/ -q" not in integration
+    for name in (
+        "test_scaffold_exports_self_contained_python_starter",
+        "test_scaffold_exports_self_contained_java_starter",
+        "test_apply_kit_delivers_a_working_python_project",
+        "test_apply_kit_delivers_a_working_java_project",
+    ):
+        assert name in integration
+    assert "command -v mvn" in integration
+    assert "command -v uv" in integration
     assert all(
         step.get("name") != "Set up Java 21" for step in jobs["python-and-integrity"]["steps"]
     )
@@ -522,3 +532,75 @@ def test_commit_skips_prior_unstaged_deleted_descendant(tmp_path: Path) -> None:
     assert committed.splitlines() == [".ai/kept.md", ".claude/kept.md"]
     assert _git(tmp_path, "diff", "--name-only") == ".claude/deleted.md"
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_commit_requires_modified_source_not_preexisting_destination(tmp_path: Path) -> None:
+    """A HEAD-tracked destination must not authorize an untracked source."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    previous = tmp_path / ".ai"
+    previous.mkdir()
+    (previous / "note.txt").write_text("versioned baseline\n")
+    _git(tmp_path, "add", "--", ".ai/note.txt")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    original_head = _git(tmp_path, "rev-parse", "HEAD")
+    (previous / "note.txt").unlink()
+    previous.rmdir()
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "note.txt").write_text("untracked private contents\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert _git(tmp_path, "rev-parse", "HEAD") == original_head
+    assert _git(tmp_path, "show", "HEAD:.ai/note.txt") == "versioned baseline"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert (tmp_path / ".ai" / "note.txt").read_text() == "untracked private contents\n"
+
+
+def test_relative_public_api_alias_is_renamed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    target = Path(".cursorrules")
+    target.write_text("neutral\n")
+    scan = ConstitutionScanner().scan_path(target)
+    assert scan.total_violations >= 1
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success, result.error_message
+    assert not target.exists()
+    assert Path(".airules").read_text() == "neutral\n"
+
+
+def test_end_anchored_regex_matches_crlf_body(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    target = tmp_path / "rules.md"
+    target.write_bytes(b"Claude\r\n")
+    pattern = Pattern(
+        pattern=r"Claude$",
+        suggestion="AI",
+        severity=Severity.WARNING,
+        rule_id="TXT-END",
+        scope=MatchScope.FILE_CONTENT,
+    )
+    scan = ConstitutionScanner(patterns=[pattern]).scan_path(target)
+    assert scan.total_violations == 1
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_bytes() == b"AI\r\n"
+
+
+def test_run_all_explicitly_rejects_unsupported_json_format(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("Claude\n")
+    assert main(["run-all", str(tmp_path), "--format", "json"]) == 3
+    message = capsys.readouterr()
+    assert "format" in message.err.lower()
+    assert "not supported" in message.err.lower()
+    assert target.read_text() == "Claude\n"
