@@ -1059,13 +1059,16 @@ def test_posix_literal_backslash_alias_directory_not_renamed(tmp_path: Path) -> 
 
 
 def test_custom_directory_pattern_can_consume_leading_separator(tmp_path: Path) -> None:
+    import os
+    import re
+
     from constitution_linter import MatchScope, Pattern, Severity
 
     directory = tmp_path / ".claude"
     directory.mkdir()
     (directory / "note.md").write_text("neutral\n")
     pattern = Pattern(
-        pattern=r"/\.claude/",
+        pattern=rf"{re.escape(os.sep)}\.claude{re.escape(os.sep)}",
         suggestion=".ai/",
         severity=Severity.CRITICAL,
         rule_id="DIR-LEAD",
@@ -1089,3 +1092,87 @@ def test_nested_dry_run_lists_actual_rename_operation_order(
     assert child in output
     assert parent in output
     assert output.index(child) < output.index(parent)
+
+
+def test_interactive_autocommit_refuses_dirty_content_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("AI\nAI\n")
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude\nClaude\n")
+    responses = iter(("y", "y", "n"))
+    monkeypatch.setattr("builtins.input", lambda _: next(responses))
+
+    assert main(["run-all", str(tmp_path), "--interactive", "--commit"]) == 4
+    assert target.read_text() == "Claude\nClaude\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_noop_autocommit_rejects_unstaged_executable_mode(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("AI\n")
+    target.chmod(0o644)
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude\n")
+    target.chmod(0o755)
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert target.read_text() == "Claude\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_crlf_noop_autocommit_respects_git_clean_filters(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / ".gitattributes").write_text("*.md text eol=crlf\n")
+    target = tmp_path / "note.md"
+    target.write_bytes(b"AI\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_bytes(b"Claude\r\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_bytes() == b"AI\r\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_custom_directory_alias_with_literal_backslash_is_respected(tmp_path: Path) -> None:
+    import os
+
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    if os.name == "nt":
+        return
+    directory = tmp_path / "legacy\\"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    rule = Pattern(
+        pattern=r"legacy\\(?=/)",
+        suggestion="modern",
+        severity=Severity.WARNING,
+        rule_id="DIR-BACKSLASH",
+        scope=MatchScope.FILE_PATH,
+    )
+    scan = ConstitutionScanner(patterns=[rule]).scan_path(tmp_path)
+    assert scan.total_violations == 1

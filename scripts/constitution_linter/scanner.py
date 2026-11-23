@@ -259,7 +259,11 @@ class ConstitutionScanner:
             if violation_type == ViolationType.DIRECTORY_ALIAS:
                 # On POSIX a matched literal backslash belongs to the directory
                 # name; it is not a separator for an alias like .claude.
-                if os.sep != "\\" and match.group().endswith("\\"):
+                if (
+                    os.sep != "\\"
+                    and pattern.rule_id in {"DIR-001", "DIR-002", "DIR-003", "DIR-004"}
+                    and match.group().endswith("\\")
+                ):
                     continue
                 # A regex may consume the separator or stop just before it,
                 # as with a custom lookahead pattern.

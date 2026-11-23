@@ -475,7 +475,9 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
         return EXIT_EXECUTION_ERROR
 
 
-def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: ConstitutionFixer) -> int:
+def _preflight_commit_destinations(
+    path: Path, plan: FixPlan, fixer: ConstitutionFixer, interactive: bool = False
+) -> int:
     """Validate all tracked rename destinations before changing files or index.
 
     One canonical rename sequence is shared with the fixer and commit step.
@@ -589,6 +591,29 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                 )
                 return EXIT_EXECUTION_ERROR
             if leaf in content_sources and name in head_paths:
+                # The preflight cannot predict which fixes a user will decline.
+                if interactive:
+                    print(
+                        f"Refusing commit: interactive fixes on dirty source: {name}",
+                        file=sys.stderr,
+                    )
+                    return EXIT_EXECUTION_ERROR
+                # Matching content bytes alone is insufficient if a chmod
+                # would enter the commit. Preserve the index executable bit.
+                stage_data = subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-files", "-s", "--", f":(literal){name}"],
+                    cwd=root,
+                )
+                index_mode = stage_data.split(b" ", 1)[0]
+                executable = bool(leaf.stat().st_mode & 0o111)
+                if index_mode not in (b"100644", b"100755") or (
+                    (index_mode == b"100755") != executable
+                ):
+                    print(
+                        f"Refusing commit: unrelated file-mode change: {name}",
+                        file=sys.stderr,
+                    )
+                    return EXIT_EXECUTION_ERROR
                 # Simulate reported fixes in a disposable file. If the result
                 # differs from the index, other unstaged edits would be
                 # swept into the commit. A restoration to HEAD is a safe no-op.
@@ -604,10 +629,19 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                     simulation._apply_content_fix(
                         candidate, violations, dry_run=False, interactive=False
                     )
-                    indexed = subprocess.check_output(  # nosec B603 - fixed Git argv
-                        [git_executable, "show", f":{name}"], cwd=root
-                    )
-                    if candidate.read_bytes() != indexed:
+                    indexed_oid = subprocess.check_output(  # nosec B603 - fixed Git argv
+                        [git_executable, "rev-parse", f":{name}"], cwd=root
+                    ).strip()
+                    # Apply the same Git clean filters and attributes that
+                    # git add would use (e.g. CRLF checkout to LF index).
+                    candidate_oid = subprocess.run(  # nosec B603 - fixed Git argv
+                        [git_executable, "hash-object", f"--path={name}", "--stdin"],
+                        input=candidate.read_bytes(),
+                        cwd=root,
+                        capture_output=True,
+                        check=True,
+                    ).stdout.strip()
+                    if candidate_oid != indexed_oid:
                         print(
                             f"Refusing commit: unrelated unstaged edits in content source: {name}",
                             file=sys.stderr,
@@ -737,7 +771,9 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Commit preflight must precede every content edit and path rename.
     if args.commit and not args.dry_run:
-        preflight_code = _preflight_commit_destinations(path, plan, fixer)
+        preflight_code = _preflight_commit_destinations(
+            path, plan, fixer, interactive=args.interactive
+        )
         if preflight_code != EXIT_SUCCESS:
             return preflight_code
 
