@@ -172,3 +172,26 @@ def test_dry_run_previews_actual_renamed_directory(
     preview = capsys.readouterr().out
     assert f"+++ {tmp_path / '.ai'}" in preview
     assert f"+++ {alias / '.ai'}" not in preview
+
+
+def test_run_all_commit_uses_literal_paths_for_glob_metacharacters(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "file[1].md"
+    similar = tmp_path / "file1.md"
+    target.write_text("Claude outside\n", encoding="utf-8")
+    similar.write_text("original\n", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "initial")
+
+    # This unrelated staged change matches Git's glob interpretation of [1].
+    similar.write_text("unrelated staged\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", "file1.md")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_text(encoding="utf-8") == "AI outside\n"
+    assert _git(tmp_path, "show", "--pretty=", "--name-only", "HEAD") == "file[1].md"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == "file1.md"

@@ -335,7 +335,9 @@ def _run_commit_step(path: Path, plan: FixPlan, files_modified: tuple[str, ...])
             ).strip()
         )
         paths = list(
-            dict.fromkeys(str(Path(name).resolve().relative_to(root)) for name in files_modified)
+            dict.fromkeys(
+                f":(literal){Path(name).resolve().relative_to(root)}" for name in files_modified
+            )
         )
         # Explicitly stage renames and deletions, never unrelated user paths.
         subprocess.run(  # nosec B603 - verified paths after --, no shell
