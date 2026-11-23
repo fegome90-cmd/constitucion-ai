@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess  # nosec B404 - controlled Git commands, no shell invocation
 import sys
+from bisect import bisect_left
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypeVar, cast
 
@@ -244,7 +245,11 @@ def cmd_fix(args: argparse.Namespace) -> int:
     # Show diff preview
     if args.dry_run:
         print("=== DRY RUN - No changes will be made ===\n")
-        diff = fixer.generate_diff(plan)
+        try:
+            diff = fixer.generate_diff(plan)
+        except (ValueError, PathSecurityError, OSError) as exc:
+            print(f"Cannot preview changes: {exc}", file=sys.stderr)
+            return EXIT_EXECUTION_ERROR
         print(diff)
         # LOG-007: Exit code 2 is intentional for dry run with changes
         return EXIT_DRY_RUN
@@ -390,15 +395,14 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             if v.violation_type not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
             and Path(v.file_path).resolve() in modified_paths
         }
-        original_sources = rename_sources | content_sources
 
         paths_to_commit: set[str] = set()
         for name in head_files:
             if not name or name not in index_files:
                 continue
             original = root / name
-            if not any(
-                original == source or original.is_relative_to(source) for source in original_sources
+            if original not in content_sources and not any(
+                original == source or original.is_relative_to(source) for source in rename_sources
             ):
                 continue
 
@@ -413,8 +417,8 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
                 if not final.exists() and original not in scanned_files:
                     continue
                 raise ValueError(f"Tracked fix target is not a file: {final}")
-            paths_to_commit.add(str(original.relative_to(root)))
-            paths_to_commit.add(str(final.relative_to(root)))
+            paths_to_commit.add(original.relative_to(root).as_posix())
+            paths_to_commit.add(final.relative_to(root).as_posix())
 
         if not paths_to_commit:
             print("No tracked fixes to commit; untracked files remain untracked.")
@@ -520,9 +524,43 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
             .split("\0")
         )
         ordered_renames = fixer.planned_path_renames(plan)
-        # An ignored untracked-only alias does not block a tracked content fix.
+        staged_paths = (
+            set(
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "diff", "--cached", "--name-only", "-z", "HEAD"],
+                    cwd=root,
+                )
+                .decode("utf-8", "surrogateescape")
+                .split("\0")
+            )
+            if head_paths
+            else index_paths
+        )
+        content_sources = {
+            Path(v.file_path).absolute() for v in plan.violations if v.line is not None
+        }
+        # Never overwrite a staged change, even when the fix is a no-op.
+        for staged_name in staged_paths:
+            # git rm --cached leaves a local file deliberately untracked.
+            # Its contents may be fixed without reintroducing it into Git.
+            if staged_name not in index_paths:
+                continue
+            staged_path = root / staged_name
+            if staged_path in content_sources or any(
+                staged_path == src or staged_path.is_relative_to(src) for src, _ in ordered_renames
+            ):
+                print(
+                    f"Refusing commit: staged changes in fix source: {staged_name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+
+        # HEAD paths also protect user-staged deletions of old destinations.
+        occupied = head_paths | index_paths
+        occupied_sorted = sorted(occupied)
         eligible = head_paths & index_paths
         destinations: set[str] = set()
+        active_directory_sources: set[Path] = set()
         for original_name in eligible:
             if not original_name:
                 continue
@@ -541,6 +579,9 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                 )
                 return EXIT_EXECUTION_ERROR
 
+            for src, _ in ordered_renames:
+                if src.is_dir() and original.is_relative_to(src):
+                    active_directory_sources.add(src)
             final = original
             for src, dst in ordered_renames:
                 if final == src or final.is_relative_to(src):
@@ -548,19 +589,37 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
             if final == original:
                 continue
             try:
-                final_name = str(final.relative_to(root))
+                final_name = final.relative_to(root).as_posix()
             except ValueError:
                 print(f"Refusing commit: path escapes Git repository: {final}", file=sys.stderr)
                 return EXIT_EXECUTION_ERROR
             # A staged addition or old tracked destination must never be overwritten,
             # even when absent from the working tree.
-            if final_name in head_paths or final_name in index_paths:
+            ancestors = {
+                "/".join(final_name.split("/")[:i]) for i in range(1, len(final_name.split("/")))
+            }
+            prefix = final_name + "/"
+            descendant_index = bisect_left(occupied_sorted, prefix)
+            descendant = descendant_index < len(occupied_sorted) and occupied_sorted[
+                descendant_index
+            ].startswith(prefix)
+            if final_name in occupied or ancestors & occupied or descendant:
                 print(
-                    f"Refusing commit: rename destination exists in Git index/HEAD: {final_name}",
+                    f"Refusing commit: rename destination collides with Git path: {final_name}",
                     file=sys.stderr,
                 )
                 return EXIT_EXECUTION_ERROR
             destinations.add(final_name)
+
+        # Internal .gitignore rules move with a directory and can change
+        # path eligibility after the rename. In auto-commit mode, fail closed.
+        for directory in active_directory_sources:
+            if any(p.is_file() for p in directory.rglob(".gitignore")):
+                print(
+                    f"Refusing commit: directory rename moves .gitignore: {directory}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
 
         if destinations:
             stdin_paths = b"".join(

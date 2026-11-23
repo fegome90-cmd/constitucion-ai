@@ -464,6 +464,7 @@ class ConstitutionFixer:
 
     def generate_diff(self, plan: FixPlan) -> str:
         """Preview all reported path and content changes without modifying files."""
+        self.planned_path_renames(plan)
         diff_lines: list[str] = []
         by_file: dict[str, list[Violation]] = {}
         for violation in plan.violations:

@@ -126,7 +126,7 @@ uv run constitution-linter run-all .
 uv run constitution-linter run-all . --commit
 ```
 
-`--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Revisa los cambios antes de usarlo; los archivos locales sin seguimiento permanecen fuera del commit automático.
+`--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Rechaza cambios previamente preparados en las rutas que intenta corregir, destinos en conflicto y renombres de directorios que contengan reglas `.gitignore` internas. Para esos casos, ejecuta `fix` sin `--commit`, revisa el resultado y confirma manualmente; el commit automático no debe absorber trabajo ajeno.
 
 #### Códigos de Salida
 

@@ -806,3 +806,94 @@ def test_commit_with_no_resulting_diff_is_success(tmp_path: Path) -> None:
     assert target.read_text() == "AI\n"
     assert _git(tmp_path, "rev-parse", "HEAD") == old_head
     assert _git(tmp_path, "status", "--porcelain") == ""
+
+
+def test_commit_preserves_staged_draft_in_the_same_source(tmp_path: Path) -> None:
+    """Even a no-op fix must not discard previously staged same-file content."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("AI\n")
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    head_before = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("staged draft\n")
+    _git(tmp_path, "add", "--", "note.md")
+    target.write_text("Claude\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert target.read_text() == "Claude\n"
+    assert _git(tmp_path, "show", ":note.md") == "staged draft"
+    assert _git(tmp_path, "rev-parse", "HEAD") == head_before
+
+
+def test_commit_rejects_tracked_ancestor_of_rename_target(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "a.md").write_text("neutral\n")
+    (tmp_path / ".ai").write_text("an unrelated tracked file\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    (tmp_path / ".ai").unlink()
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (alias / "a.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_commit_rejects_tracked_descendant_of_rename_target(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    (alias / "a.md").write_text("neutral\n")
+    old = tmp_path / ".ai" / "a.md"
+    old.mkdir(parents=True)
+    (old / "unrelated.txt").write_text("tracked value\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    (old / "unrelated.txt").unlink()
+    old.rmdir()
+    (tmp_path / ".ai").rmdir()
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (alias / "a.md").read_text() == "neutral\n"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_commit_rejects_gitignore_rules_moved_with_directory(tmp_path: Path) -> None:
+    """Moving a source .gitignore may ignore files only after the rename."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    source = tmp_path / ".claude"
+    source.mkdir()
+    (source / ".gitignore").write_text("a.md\n")
+    (source / "a.md").write_text("neutral\n")
+    _git(tmp_path, "add", "-f", "--", ".claude/a.md", ".claude/.gitignore")
+    _git(tmp_path, "commit", "-qm", "baseline")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (source / "a.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_dry_run_reports_conflicting_alias_targets(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for name in (".claude", ".cursor"):
+        directory = tmp_path / name
+        directory.mkdir()
+        (directory / "note.md").write_text("neutral\n")
+    assert main(["fix", str(tmp_path), "--dry-run"]) == 4
+    out = capsys.readouterr()
+    assert "Conflicting rename destination" in out.err
+    assert (tmp_path / ".claude" / "note.md").exists()
+    assert (tmp_path / ".cursor" / "note.md").exists()
