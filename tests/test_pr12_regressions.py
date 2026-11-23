@@ -1286,3 +1286,30 @@ def test_untracked_only_gitattributes_may_fix_without_creating_commit(tmp_path: 
         ).returncode
         != 0
     )
+
+
+def test_untracked_attrs_alias_and_prior_deleted_tracked_leaf_do_not_block(tmp_path: Path) -> None:
+    """Deleted tracked leaves are not eligible as sources for auto-commit."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    deleted = directory / "gone.md"
+    deleted.write_text("previously tracked\n")
+    _git(tmp_path, "add", "--", ".claude/gone.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    original_head = _git(tmp_path, "rev-parse", "HEAD")
+    deleted.unlink()
+    (directory / "new.md").write_text("neutral local\n")
+    attributes = tmp_path / ".gitattributes"
+    attributes.write_text("# Claude\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert attributes.read_text() == "# AI\n"
+    assert (tmp_path / ".ai" / "new.md").read_text() == "neutral local\n"
+    assert not directory.exists()
+    assert _git(tmp_path, "rev-parse", "HEAD") == original_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "diff", "--name-only") == ".claude/gone.md"
+    assert _git(tmp_path, "ls-files") == ".claude/gone.md"

@@ -565,23 +565,29 @@ def _preflight_commit_destinations(
             v.line is not None and Path(v.file_path).name.casefold() == ".gitattributes"
             for v in plan.violations
         )
-        # A file that will never be staged cannot affect the automatic
-        # commit. Keep the existing untracked-only fix behavior.
-        commit_has_tracked_source = any(
-            (root / name) in content_sources
-            or any(
-                (root / name) == src or (root / name).is_relative_to(src)
-                for src, _ in ordered_renames
+        # A source absent from the worktree was deleted before this scan.
+        # It cannot be staged by the fixer, and is not a reason to block
+        # unrelated untracked-only corrections. Avoid the scan entirely
+        # when no attributes file is being edited.
+        if attributes_edit:
+            commit_has_tracked_source = any(
+                ((root / name).exists() or (root / name).is_symlink())
+                and (
+                    (root / name) in content_sources
+                    or any(
+                        (root / name) == src or (root / name).is_relative_to(src)
+                        for src, _ in ordered_renames
+                    )
+                )
+                for name in (head_paths & index_paths)
+                if name
             )
-            for name in (head_paths & index_paths)
-            if name
-        )
-        if attributes_edit and commit_has_tracked_source:
-            print(
-                "Refusing commit: plan edits .gitattributes",
-                file=sys.stderr,
-            )
-            return EXIT_EXECUTION_ERROR
+            if commit_has_tracked_source:
+                print(
+                    "Refusing commit: plan edits .gitattributes",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
 
         # Ignore patterns edited by this same plan can alter path eligibility
         # after a rename. Manual staging is required for this ambiguous case.
