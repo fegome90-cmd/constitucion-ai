@@ -604,3 +604,101 @@ def test_run_all_explicitly_rejects_unsupported_json_format(
     assert "format" in message.err.lower()
     assert "not supported" in message.err.lower()
     assert target.read_text() == "Claude\n"
+
+
+def test_commit_ignored_destination_preserves_original_and_index(tmp_path: Path) -> None:
+    """Ignored .ai destination must block run-all before any move or staging."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / ".gitignore").write_text(".ai/\n")
+    old = tmp_path / ".claude"
+    old.mkdir()
+    (old / "keep.md").write_text("neutral\n")
+    _git(tmp_path, "add", "--", ".gitignore", ".claude/keep.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    head_before = _git(tmp_path, "rev-parse", "HEAD")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (old / "keep.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "rev-parse", "HEAD") == head_before
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_changed_file_alias_symlink_does_not_rename_referent(tmp_path: Path) -> None:
+    """The fixer must validate symlinks at their lexical scanned path."""
+    old = tmp_path / ".cursorrules"
+    old.write_text("normal\n")
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(ConstitutionScanner().scan_path(old))
+    victim = tmp_path / "victim.txt"
+    victim.write_text("preserve me\n")
+    old.unlink()
+    old.symlink_to(victim)
+
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert not result.success
+    assert old.is_symlink()
+    assert victim.read_text() == "preserve me\n"
+    assert not (tmp_path / ".airules").exists()
+
+
+def test_file_alias_suffix_must_not_be_rewritten(tmp_path: Path) -> None:
+    target = tmp_path / ".cursorrules.local"
+    target.write_text("neutral\n")
+    assert ConstitutionScanner().scan_path(target).passed
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == "neutral\n"
+    assert not (tmp_path / ".airules").exists()
+
+
+def test_file_alias_directory_name_is_not_file_hit(tmp_path: Path) -> None:
+    directory = tmp_path / ".cursorrules"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    scan = ConstitutionScanner().scan_path(tmp_path)
+    assert scan.passed, scan.all_violations
+
+
+def test_custom_both_scope_path_hit_does_not_abort_content_fix(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    target = tmp_path / "Claude.md"
+    target.write_text("Claude\n")
+    pattern = Pattern(
+        pattern="Claude",
+        suggestion="AI",
+        severity=Severity.WARNING,
+        rule_id="TXT-BOTH",
+        scope=MatchScope.BOTH,
+    )
+    scanner = ConstitutionScanner(patterns=[pattern])
+    scan = scanner.scan_path(target)
+    assert any(v.line is None for v in scan.all_violations)
+    assert any(v.line is not None for v in scan.all_violations)
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(scan)
+    assert plan.needs_review >= 1
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_text() == "AI\n"
+    assert target.name == "Claude.md"
+
+
+def test_large_rename_commit_stages_only_tracked_leaves(tmp_path: Path) -> None:
+    """Batch commits use exact file paths and preserve unrelated additions."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    for i in range(80):
+        (directory / f"config-{i:03d}.md").write_text(f"config {i}\n")
+    _git(tmp_path, "add", "--", ".claude")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    (directory / "private.txt").write_text("untracked private\n")
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert len(_git(tmp_path, "ls-files").splitlines()) == 80
+    assert (tmp_path / ".ai" / "private.txt").read_text() == "untracked private\n"
+    assert _git(tmp_path, "status", "--porcelain") == "?? .ai/private.txt"

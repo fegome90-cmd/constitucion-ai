@@ -417,28 +417,110 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             print("No tracked fixes to commit; untracked files remain untracked.")
             return EXIT_SUCCESS
 
-        paths = [f":(literal){name}" for name in sorted(paths_to_commit)]
-        # Explicit leaf files only: directory pathspecs absorb untracked siblings.
-        subprocess.run(  # nosec B603 - literal paths and fixed argv, no shell
-            [git_executable, "add", "-A", "--", *paths],
-            check=True,
-            cwd=root,
-            capture_output=True,
-            text=True,
+        # NUL-delimited literal leaf pathspecs avoid shell globbing, path
+        # ambiguity and OS argument-size limits on large directory renames.
+        pathspecs = b"".join(
+            f":(literal){name}".encode("utf-8", errors="surrogateescape") + b"\0"
+            for name in sorted(paths_to_commit)
         )
-        # --only prevents previously staged unrelated changes from entering the commit.
-        subprocess.run(  # nosec B603 - literal paths and fixed argv, no shell
-            [git_executable, "commit", "--only", "-m", commit_msg, "--", *paths],
+        pathspec_args = ["--pathspec-from-file=-", "--pathspec-file-nul"]
+        # Dry-run first: a rejected destination must not leave the index half staged.
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "add", "--dry-run", "-A", *pathspec_args],
+            input=pathspecs,
             check=True,
             cwd=root,
             capture_output=True,
-            text=True,
+        )
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "add", "-A", *pathspec_args],
+            input=pathspecs,
+            check=True,
+            cwd=root,
+            capture_output=True,
+        )
+        # --only excludes unrelated user changes already staged in the index.
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "commit", "--only", "-m", commit_msg, *pathspec_args],
+            input=pathspecs,
+            check=True,
+            cwd=root,
+            capture_output=True,
         )
         print("✅ Commit created successfully")
         return EXIT_SUCCESS
     except (subprocess.CalledProcessError, OSError, ValueError) as exc:
         print(f"❌ Git commit failed: {getattr(exc, 'stderr', None) or exc}", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
+
+
+def _preflight_commit_destinations(path: Path, plan: FixPlan) -> int:
+    """Refuse ignored rename targets before writing files or staging Git changes."""
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        print("Git executable not found", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
+    cwd = path if path.is_dir() else path.parent
+    root_result = subprocess.run(  # nosec B603 - fixed Git command, no shell
+        [git_executable, "rev-parse", "--show-toplevel"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if root_result.returncode != 0:
+        print("Cannot commit outside a Git repository", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
+    root = Path(root_result.stdout.strip()).resolve()
+    scan_root = cwd.resolve()
+    tracked = (
+        subprocess.check_output(  # nosec B603 - fixed Git command
+            [git_executable, "ls-files", "--cached", "-z"], cwd=root
+        )
+        .decode("utf-8", errors="surrogateescape")
+        .split("\0")
+    )
+
+    for violation in plan.violations:
+        if violation.violation_type not in (
+            ViolationType.DIRECTORY_ALIAS,
+            ViolationType.FILE_ALIAS,
+        ):
+            continue
+        if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
+            if violation.column is None:
+                continue
+            match_end = violation.column + len(violation.match)
+            source = Path(violation.file_path[:match_end].rstrip("/" + chr(92))).absolute()
+        else:
+            source = Path(violation.file_path).absolute()
+        destination = source.with_name(violation.suggestion.rstrip("/" + chr(92)))
+        if not source.is_relative_to(scan_root) or not destination.is_relative_to(scan_root):
+            continue
+
+        candidates = [str(destination)]
+        if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
+            candidates.append(str(destination) + "/")
+            for tracked_name in tracked:
+                if not tracked_name:
+                    continue
+                original = root / tracked_name
+                if original.is_relative_to(source):
+                    candidates.append(str(destination / original.relative_to(source)))
+        for candidate in set(candidates):
+            check = subprocess.run(  # nosec B603 - fixed Git command
+                [git_executable, "check-ignore", "--quiet", "--no-index", "--", candidate],
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if check.returncode == 0:
+                print(f"Refusing commit: ignored rename destination {candidate}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+            if check.returncode != 1:
+                print(f"Git ignore check failed for {candidate}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+    return EXIT_SUCCESS
 
 
 @handle_scan_errors
@@ -465,6 +547,12 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Step 2: Plan
     plan = _run_plan_step(fixer, result, reporter)
+
+    # Commit preflight must precede every content edit and path rename.
+    if args.commit and not args.dry_run:
+        preflight_code = _preflight_commit_destinations(path, plan)
+        if preflight_code != EXIT_SUCCESS:
+            return preflight_code
 
     # Step 3: Review (if interactive)
     if args.interactive:

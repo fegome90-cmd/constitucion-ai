@@ -101,6 +101,14 @@ class ConstitutionFixer:
         needs_review: list[Violation] = []
 
         for v in violations:
+            # A path-only match without a directory/file alias requires human
+            # interpretation; it is not a content span that can be autofixed.
+            if v.line is None and v.violation_type not in (
+                ViolationType.DIRECTORY_ALIAS,
+                ViolationType.FILE_ALIAS,
+            ):
+                needs_review.append(v)
+                continue
             # Directory aliases are always safe (file system level)
             if (
                 v.violation_type == ViolationType.DIRECTORY_ALIAS
@@ -236,19 +244,27 @@ class ConstitutionFixer:
 
         try:
             for violation in plan.violations:
+                # A non-alias path match may require human review, but cannot
+                # be treated as a content span without a line/column location.
+                if (
+                    violation.violation_type
+                    not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+                    and violation.line is None
+                ):
+                    continue
                 if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
                     if violation.column is None:
                         raise ValueError("Directory violation has no matched path offset")
                     # v.column indexes the complete path. Capture the matched directory,
                     # never a child file that happened to contain the directory alias.
                     end = violation.column + len(violation.match)
-                    source = Path(violation.file_path[:end].rstrip("/\\")).resolve()
+                    source = Path(violation.file_path[:end].rstrip("/\\")).absolute()
                     destination = source.with_name(violation.suggestion.rstrip("/\\"))
                 elif violation.violation_type == ViolationType.FILE_ALIAS:
-                    source = Path(violation.file_path).resolve()
+                    source = Path(violation.file_path).absolute()
                     destination = source.with_name(violation.suggestion.rstrip("/\\"))
                 else:
-                    content_edits.setdefault(Path(violation.file_path).resolve(), []).append(
+                    content_edits.setdefault(Path(violation.file_path).absolute(), []).append(
                         violation
                     )
                     continue
@@ -362,6 +378,8 @@ class ConstitutionFixer:
     ) -> bool:
         """Replace only scanner-reported spans, preserving other text and file mode."""
         self._validate_path_in_base(file_path)
+        if file_path.is_symlink():
+            raise PathSecurityError(f"Refusing to edit symlink: {file_path}")
         if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
             return False
 
@@ -457,7 +475,7 @@ class ConstitutionFixer:
 
         seen_renames: set[tuple[Path, Path]] = set()
         for filename, violations in sorted(by_file.items()):
-            path = Path(filename).resolve()
+            path = Path(filename).absolute()
             path_fixes = [
                 v
                 for v in violations
@@ -467,7 +485,7 @@ class ConstitutionFixer:
                 if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
                     assert violation.column is not None
                     end = violation.column + len(violation.match)
-                    source_path = Path(filename[:end].rstrip("/\\")).resolve()
+                    source_path = Path(filename[:end].rstrip("/\\")).absolute()
                 else:
                     source_path = path
                 destination = source_path.with_name(violation.suggestion.rstrip("/\\"))

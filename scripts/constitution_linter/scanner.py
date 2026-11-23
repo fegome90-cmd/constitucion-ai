@@ -253,6 +253,10 @@ class ConstitutionScanner:
         # Require a whole path component, never a suffix of an ordinary name.
         violation_type = get_violation_type(pattern)
         for match in compiled.finditer(full_path):
+            # A file alias must match the complete basename, not .cursorrules.local
+            # or a directory named .cursorrules.
+            if violation_type == ViolationType.FILE_ALIAS and match.end() != len(full_path):
+                continue
             if (
                 violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
                 and match.start() > 0
