@@ -525,13 +525,18 @@ def _preflight_commit_destinations(
                 print("Unable to inspect Git HEAD", file=sys.stderr)
                 return EXIT_EXECUTION_ERROR
             head_paths = set()
-        index_paths = set(
-            subprocess.check_output(  # nosec B603 - fixed Git argv
-                [git_executable, "ls-files", "--cached", "-z"], cwd=root
-            )
-            .decode("utf-8", "surrogateescape")
-            .split("\0")
+        # Git mode is authoritative. With core.symlinks=false, a 120000
+        # index entry can appear as an ordinary file in the worktree.
+        index_modes: dict[str, bytes] = {}
+        index_records = subprocess.check_output(  # nosec B603 - fixed Git argv
+            [git_executable, "ls-files", "--stage", "-z"], cwd=root
         )
+        for record in index_records.split(b"\0"):
+            if not record:
+                continue
+            metadata, raw_name = record.split(b"\t", 1)
+            index_modes[raw_name.decode("utf-8", "surrogateescape")] = metadata.split(b" ", 1)[0]
+        index_paths = set(index_modes)
         ordered_renames = fixer.planned_path_renames(plan)
         content_sources = {
             Path(v.file_path).absolute() for v in plan.violations if v.line is not None
@@ -551,8 +556,14 @@ def _preflight_commit_destinations(
             # The staging allowlist contains regular files only, but a
             # directory rename moves *every* child. Validate tracked links
             # and gitlinks too, before they can be relocated without staging.
-            if affected_by_rename and (
-                original.is_symlink() or (original.exists() and not original.is_file())
+            if (
+                affected_by_rename
+                and (original.exists() or original.is_symlink())
+                and (
+                    index_modes[name] not in (b"100644", b"100755")
+                    or original.is_symlink()
+                    or not original.is_file()
+                )
             ):
                 print(
                     f"Refusing commit: non-regular tracked rename source: {name}",
@@ -803,6 +814,14 @@ def cmd_run_all(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return EXIT_VALIDATION_ERROR
+    # A human confirmation can leave a mutable window between preflight and
+    # staging. Keep interactive fixes separate from automated Git commits.
+    if args.commit and args.interactive:
+        print(
+            "Refusing --interactive --commit: run fix interactively, then review and commit manually.",
+            file=sys.stderr,
+        )
+        return EXIT_EXECUTION_ERROR
     if Path(args.path).is_symlink():
         print(f"Refusing symlink input: {args.path}", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
