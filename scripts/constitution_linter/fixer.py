@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import secrets
 import tarfile
 import tempfile
@@ -249,6 +250,12 @@ class ConstitutionFixer:
                 else:
                     content_edits.setdefault(Path(violation.file_path), []).append(violation)
                     continue
+                # An ancestor of the selected file/subtree is not in scope.
+                # Avoid renaming a parent outside the caller's requested root.
+                if not source.is_relative_to(self.base_path) or not destination.is_relative_to(
+                    self.base_path
+                ):
+                    continue
                 if source in renames and renames[source] != destination:
                     raise ValueError(f"Conflicting rename for {source}")
                 renames[source] = destination
@@ -359,7 +366,13 @@ class ConstitutionFixer:
         # Preserve CRLF while matching the scanner's LF-only logical boundaries.
         # splitlines() incorrectly splits within a scanned U+2028 line.
         with file_path.open("r", encoding="utf-8", newline="") as stream:
-            lines = stream.read().split("\n")
+            raw_text = stream.read()
+        # Path.read_text in the scanner translates CR, LF and CRLF into LF.
+        # Keep the original line endings while calculating the same positions.
+        parts = re.split(r"(\r\n|\r|\n)", raw_text)
+        lines = [
+            parts[i] + (parts[i + 1] if i + 1 < len(parts) else "") for i in range(0, len(parts), 2)
+        ]
         by_line: dict[int, list[Violation]] = {}
         for violation in violations:
             if violation.line is None or violation.column is None:
@@ -393,7 +406,16 @@ class ConstitutionFixer:
                     print(f"  Replace with: {violation.suggestion}")
                     if input("Apply? [y/N] ").lower() != "y":
                         continue
-                new_line = new_line[:start] + violation.suggestion + new_line[end:]
+                matched = compile_pattern(violation.pattern).match(original_line, start)
+                if matched is None or matched.end() != end:
+                    raise ValueError(f"Stale regex match at {file_path}:{line_index + 1}")
+                try:
+                    replacement = matched.expand(violation.suggestion)
+                except re.error as exc:
+                    raise ValueError(
+                        f"Invalid replacement for {violation.pattern.rule_id}"
+                    ) from exc
+                new_line = new_line[:start] + replacement + new_line[end:]
             if new_line != original_line:
                 lines[line_index] = new_line
                 modified = True
@@ -411,7 +433,7 @@ class ConstitutionFixer:
         )
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-                stream.write("\n".join(lines))
+                stream.write("".join(lines))
             os.chmod(temp_path, file_mode)
             os.replace(temp_path, file_path)
         finally:
@@ -419,62 +441,92 @@ class ConstitutionFixer:
         return True
 
     def generate_diff(self, plan: FixPlan) -> str:
-        """
-        Generate a unified diff preview of all changes.
-
-        Args:
-            plan: Fix plan to generate diff for
-
-        Returns:
-            Unified diff string
-        """
+        """Preview all reported path and content changes without modifying files."""
         diff_lines: list[str] = []
-
-        # Group violations by file
         by_file: dict[str, list[Violation]] = {}
-        for v in plan.violations:
-            if v.file_path not in by_file:
-                by_file[v.file_path] = []
-            by_file[v.file_path].append(v)
+        for violation in plan.violations:
+            by_file.setdefault(violation.file_path, []).append(violation)
 
-        for file_path_str, violations in sorted(by_file.items()):
-            file_path = Path(file_path_str)
-
-            if violations[0].violation_type in (
-                ViolationType.DIRECTORY_ALIAS,
-                ViolationType.FILE_ALIAS,
-            ):
-                violation = violations[0]
+        seen_renames: set[tuple[Path, Path]] = set()
+        for filename, violations in sorted(by_file.items()):
+            path = Path(filename)
+            path_fixes = [
+                v
+                for v in violations
+                if v.violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+            ]
+            for violation in path_fixes:
                 if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
                     assert violation.column is not None
-                    alias_end = violation.column + len(violation.match)
-                    source = Path(file_path_str[:alias_end].rstrip("/\\"))
+                    end = violation.column + len(violation.match)
+                    source_path = Path(filename[:end].rstrip("/\\"))
                 else:
-                    source = file_path
-                destination = source.with_name(violation.suggestion.rstrip("/\\"))
-                diff_lines.append(f"--- {source}")
-                diff_lines.append(f"+++ {destination}")
-                diff_lines.append("Path rename (file or directory will be moved)")
-            else:
-                # Content diff
-                try:
-                    content = file_path.read_text(encoding="utf-8")
-                except (FileNotFoundError, UnicodeDecodeError):
+                    source_path = path
+                destination = source_path.with_name(violation.suggestion.rstrip("/\\"))
+                if (
+                    not source_path.is_relative_to(self.base_path)
+                    or not destination.is_relative_to(self.base_path)
+                    or (source_path, destination) in seen_renames
+                ):
                     continue
+                seen_renames.add((source_path, destination))
+                diff_lines.extend(
+                    (
+                        f"--- {source_path}",
+                        f"+++ {destination}",
+                        "Path rename (file or directory will be moved)",
+                    )
+                )
 
-                lines = content.split("\n")
-                diff_lines.append(f"--- {file_path_str}")
-                diff_lines.append(f"+++ {file_path_str}")
+            content_fixes = [
+                v
+                for v in violations
+                if v.violation_type not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+            ]
+            if not content_fixes:
+                continue
+            try:
+                lines = path.read_text(encoding="utf-8").split("\n")
+            except (FileNotFoundError, UnicodeDecodeError):
+                continue
 
-                for v in sorted(violations, key=lambda x: x.line or 0):
-                    if v.line and v.line <= len(lines):
-                        old_line = lines[v.line - 1]
-                        new_line = compile_pattern(v.pattern).sub(v.suggestion, old_line)
-                        if old_line != new_line:
-                            diff_lines.append(f"@@ -{v.line} +{v.line} @@")
-                            diff_lines.append(f"-{old_line}")
-                            diff_lines.append(f"+{new_line}")
+            by_line: dict[int, list[Violation]] = {}
+            for violation in content_fixes:
+                if violation.line is not None and violation.column is not None:
+                    by_line.setdefault(violation.line - 1, []).append(violation)
 
+            changes: list[tuple[int, str, str]] = []
+            for index, matches in sorted(by_line.items()):
+                if index >= len(lines):
+                    continue
+                before = lines[index]
+                after = before
+                accepted: list[tuple[int, int, Violation]] = []
+                for violation in sorted(matches, key=lambda v: (v.column or 0, -len(v.match))):
+                    assert violation.column is not None
+                    begin = violation.column - 1
+                    end = begin + len(violation.match)
+                    if before[begin:end] != violation.match:
+                        continue
+                    if any(
+                        begin < prior_end and end > prior_begin
+                        for prior_begin, prior_end, _ in accepted
+                    ):
+                        continue
+                    accepted.append((begin, end, violation))
+                for begin, end, violation in sorted(
+                    accepted, key=lambda item: item[0], reverse=True
+                ):
+                    match = compile_pattern(violation.pattern).match(before, begin)
+                    if match is not None and match.end() == end:
+                        after = after[:begin] + match.expand(violation.suggestion) + after[end:]
+                if after != before:
+                    changes.append((index + 1, before, after))
+
+            if changes:
+                diff_lines.extend((f"--- {filename}", f"+++ {filename}"))
+                for index, before, after in changes:
+                    diff_lines.extend((f"@@ -{index} +{index} @@", f"-{before}", f"+{after}"))
         return "\n".join(diff_lines)
 
 

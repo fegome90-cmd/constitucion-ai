@@ -19,6 +19,7 @@ from .types import (
     ScanResult,
     Severity,
     Violation,
+    ViolationType,
 )
 
 if TYPE_CHECKING:
@@ -249,8 +250,15 @@ class ConstitutionScanner:
         violations: list[Violation] = []
         compiled = self._compiled[pattern]
 
-        # Match against full path
+        # Require a whole path component, never a suffix of an ordinary name.
+        violation_type = get_violation_type(pattern)
         for match in compiled.finditer(full_path):
+            if (
+                violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+                and match.start() > 0
+                and full_path[match.start() - 1] not in ("/", chr(92))
+            ):
+                continue
             violations.append(
                 Violation(
                     file_path=full_path,

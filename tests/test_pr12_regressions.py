@@ -345,3 +345,157 @@ def test_nested_rename_commit_excludes_untracked_sibling(tmp_path: Path) -> None
     assert (tmp_path / ".ai" / "local.md").read_text() == "untracked private\n"
     assert _git(tmp_path, "ls-files") == ".ai/.airules"
     assert _git(tmp_path, "status", "--porcelain") == "?? .ai/local.md"
+
+
+def test_commit_refuses_directory_substituted_for_tracked_file(tmp_path: Path) -> None:
+    """A tracked blob replaced with a local directory must not leak its contents."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    leaf = alias / "leaf"
+    leaf.write_text("old tracked blob\n")
+    _git(tmp_path, "add", "--", ".claude/leaf")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    before = _git(tmp_path, "rev-parse", "HEAD")
+    leaf.unlink()
+    leaf.mkdir()
+    (leaf / "private.txt").write_text("secret local data\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert _git(tmp_path, "rev-parse", "HEAD") == before
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert (tmp_path / ".ai" / "leaf" / "private.txt").read_text() == "secret local data\n"
+
+
+def test_commit_preserves_explicit_staged_untracking(tmp_path: Path) -> None:
+    """git rm --cached is a user decision, not permission to re-add the file."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "notes.md"
+    target.write_text("original\n")
+    _git(tmp_path, "add", "--", "notes.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    before = _git(tmp_path, "rev-parse", "HEAD")
+    _git(tmp_path, "rm", "--cached", "--", "notes.md")
+    target.write_text("Claude local contents\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_text() == "AI local contents\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == before
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == "notes.md"
+    assert _git(tmp_path, "ls-files") == ""
+
+
+def test_suffix_alias_directory_is_not_renamed(tmp_path: Path) -> None:
+    """Only the exact .claude component is an alias; backup.claude is not."""
+    alias = tmp_path / "backup.claude"
+    alias.mkdir()
+    target = alias / "neutral.md"
+    target.write_text("neutral content\n")
+    assert ConstitutionScanner().scan_path(tmp_path).passed
+    assert main(["fix", str(tmp_path)]) == 0
+    assert target.is_file()
+    assert not (tmp_path / ".ai").exists()
+
+
+def test_scoped_file_fix_does_not_rename_its_ancestor(tmp_path: Path) -> None:
+    alias = tmp_path / ".cursor"
+    alias.mkdir()
+    target = alias / "note.md"
+    target.write_text("Claude guidance\n")
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == "AI guidance\n"
+    assert alias.is_dir()
+    assert not (tmp_path / ".ai").exists()
+
+
+def test_dry_run_includes_path_and_content_changes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    target = alias / "note.md"
+    target.write_text("Claude outside\n")
+    assert main(["fix", str(tmp_path), "--dry-run"]) == 2
+    preview = capsys.readouterr().out
+    assert str(tmp_path / ".ai") in preview
+    assert "-Claude outside" in preview
+    assert "+AI outside" in preview
+    assert target.read_text() == "Claude outside\n"
+
+
+def test_backreference_replacement_uses_matched_group(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    target = tmp_path / "note.md"
+    target.write_text("Claude\n")
+    pattern = Pattern(
+        pattern=r"(Claude)",
+        suggestion=r"fixed \1",
+        severity=Severity.WARNING,
+        rule_id="TXT-CUSTOM",
+        scope=MatchScope.FILE_CONTENT,
+    )
+    fixer = ConstitutionFixer(tmp_path)
+    scan = ConstitutionScanner(patterns=[pattern]).scan_path(target)
+    assert scan.total_violations == 1
+    outcome = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert outcome.success, outcome.error_message
+    assert target.read_text() == "fixed Claude\n"
+
+
+def test_bare_carriage_return_line_break_is_preserved(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_bytes(b"First\rClaude\r")
+    scan = ConstitutionScanner().scan_path(target)
+    assert any(v.line == 2 for v in scan.all_violations)
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_bytes() == b"First\rAI\r"
+
+
+def test_unborn_git_head_does_not_fail_commit(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("Claude untracked\n")
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_text() == "AI untracked\n"
+    assert (
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "--verify", "HEAD"],
+            check=False,
+            capture_output=True,
+        ).returncode
+        != 0
+    )
+    assert _git(tmp_path, "ls-files") == ""
+
+
+def test_ci_separates_offline_checks_from_starter_smokes() -> None:
+    """A transient starter dependency outage must not reclassify core Python checks."""
+    import yaml
+
+    workflow = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml").read_text()
+    )
+    jobs = workflow["jobs"]
+    assert "python-and-integrity" in jobs
+    assert "starter-integration" in jobs
+    offline = "\n".join(step.get("run", "") for step in jobs["python-and-integrity"]["steps"])
+    integration = "\n".join(step.get("run", "") for step in jobs["starter-integration"]["steps"])
+    assert "pytest tests/test_constitution_linter.py tests/test_pr12_regressions.py" in offline
+    assert "pytest tests/ -q" not in offline
+    assert "pytest tests/ -q" in integration
+    assert all(
+        step.get("name") != "Set up Java 21" for step in jobs["python-and-integrity"]["steps"]
+    )
+    assert any(
+        step.get("name") == "Set up Java 21" for step in jobs["starter-integration"]["steps"]
+    )

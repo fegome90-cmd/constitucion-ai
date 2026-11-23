@@ -335,11 +335,41 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             ).strip()
         ).resolve()
 
-        # The HEAD tree is the pre-operation authority for tracked files.
-        # Index-only additions (staged user files) must not join an automatic commit.
-        head_files = (
-            subprocess.check_output(  # nosec B603 - controlled argv, no shell
-                [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
+        # Only files in both HEAD and the index are eligible: staged removals
+        # remain removed, and index-only additions never join the auto-commit.
+        head_probe = subprocess.run(  # nosec B603 - fixed Git argv, no shell
+            [git_executable, "rev-parse", "--verify", "--quiet", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if head_probe.returncode == 0:
+            head_files = (
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
+                )
+                .decode("utf-8", errors="surrogateescape")
+                .split("\0")
+            )
+        else:
+            unborn = subprocess.run(  # nosec B603 - fixed Git argv
+                [git_executable, "symbolic-ref", "--quiet", "HEAD"],
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if unborn.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    head_probe.returncode,
+                    [git_executable, "rev-parse", "HEAD"],
+                    stderr=head_probe.stderr,
+                )
+            head_files = []
+
+        index_files = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv
+                [git_executable, "ls-files", "--cached", "-z"], cwd=root
             )
             .decode("utf-8", errors="surrogateescape")
             .split("\0")
@@ -349,7 +379,7 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
 
         paths_to_commit: set[str] = set()
         for name in head_files:
-            if not name:
+            if not name or name not in index_files:
                 continue
             original = root / name
             if not any(
@@ -364,8 +394,9 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
 
             # A vanished original still needs its deletion staged if it was tracked.
             paths_to_commit.add(str(original.relative_to(root)))
-            if not final.exists() and not final.is_symlink():
-                raise FileNotFoundError(f"Tracked fix target missing: {final}")
+            # A tracked leaf replaced by a directory must not stage its contents.
+            if not final.is_file() and not final.is_symlink():
+                raise ValueError(f"Tracked fix target is not a file: {final}")
             paths_to_commit.add(str(final.relative_to(root)))
 
         if not paths_to_commit:
