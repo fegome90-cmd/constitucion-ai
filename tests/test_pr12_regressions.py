@@ -1176,3 +1176,73 @@ def test_custom_directory_alias_with_literal_backslash_is_respected(tmp_path: Pa
     )
     scan = ConstitutionScanner(patterns=[rule]).scan_path(tmp_path)
     assert scan.total_violations == 1
+
+
+def test_autocommit_rejects_changes_to_gitattributes_before_rename(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    attr = tmp_path / ".gitattributes"
+    attr.write_text("*.md filter=Claude\n")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    original_head = _git(tmp_path, "rev-parse", "HEAD")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert attr.read_text() == "*.md filter=Claude\n"
+    assert (directory / "note.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "rev-parse", "HEAD") == original_head
+
+
+def test_autocommit_uses_git_effective_owner_execute_mode(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    _git(tmp_path, "config", "core.fileMode", "true")
+    target = tmp_path / "note.md"
+    target.write_text("AI\n")
+    target.chmod(0o755)
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    original_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude\n")
+    target.chmod(0o655)
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert target.read_text() == "Claude\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == original_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_autocommit_respects_git_core_filemode_false(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("AI\n")
+    target.chmod(0o755)
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    _git(tmp_path, "config", "core.fileMode", "false")
+    original_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude\n")
+    target.chmod(0o655)
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert target.read_text() == "AI\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == original_head
+    assert _git(tmp_path, "ls-files", "-s").startswith("100755 ")
+    assert _git(tmp_path, "status", "--porcelain") == ""

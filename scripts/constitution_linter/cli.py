@@ -558,6 +558,19 @@ def _preflight_commit_destinations(
                 )
                 return EXIT_EXECUTION_ERROR
 
+        # The plan can rewrite .gitattributes and change clean filters
+        # after preflight; the resulting commit cannot be validated against
+        # the original attribute rules. Require explicit manual staging.
+        if any(
+            v.line is not None and Path(v.file_path).name == ".gitattributes"
+            for v in plan.violations
+        ):
+            print(
+                "Refusing commit: plan edits .gitattributes",
+                file=sys.stderr,
+            )
+            return EXIT_EXECUTION_ERROR
+
         # Ignore patterns edited by this same plan can alter path eligibility
         # after a rename. Manual staging is required for this ambiguous case.
         if ordered_renames and any(
@@ -605,10 +618,16 @@ def _preflight_commit_destinations(
                     cwd=root,
                 )
                 index_mode = stage_data.split(b" ", 1)[0]
-                executable = bool(leaf.stat().st_mode & 0o111)
-                if index_mode not in (b"100644", b"100755") or (
-                    (index_mode == b"100755") != executable
-                ):
+                # Git's raw diff reports the *effective* mode after applying
+                # core.fileMode. Unix st_mode alone is not equivalent to Git:
+                # Git tracks owner execute and can ignore chmod by config.
+                raw_diff = subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "diff", "--raw", "-z", "--", f":(literal){name}"],
+                    cwd=root,
+                )
+                header = raw_diff.split(b"\0", 1)[0].split()
+                effective_mode = header[1] if len(header) > 1 else b""
+                if index_mode not in (b"100644", b"100755") or (effective_mode != index_mode):
                     print(
                         f"Refusing commit: unrelated file-mode change: {name}",
                         file=sys.stderr,
