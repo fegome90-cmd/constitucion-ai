@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess  # nosec B404 - controlled Git commands, no shell invocation
 import sys
+import tempfile
 from bisect import bisect_left
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypeVar, cast
@@ -555,6 +556,17 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                 )
                 return EXIT_EXECUTION_ERROR
 
+        # Ignore patterns edited by this same plan can alter path eligibility
+        # after a rename. Manual staging is required for this ambiguous case.
+        if ordered_renames and any(
+            v.line is not None and Path(v.file_path).name == ".gitignore" for v in plan.violations
+        ):
+            print(
+                "Refusing commit: plan edits .gitignore while renaming paths",
+                file=sys.stderr,
+            )
+            return EXIT_EXECUTION_ERROR
+
         # A rename may otherwise commit unrelated unstaged edits from a
         # tracked leaf. Leave preexisting deletions alone (they are absent).
         unstaged_paths = set(
@@ -576,6 +588,31 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                     file=sys.stderr,
                 )
                 return EXIT_EXECUTION_ERROR
+            if leaf in content_sources and name in head_paths:
+                # Simulate reported fixes in a disposable file. If the result
+                # differs from the index, other unstaged edits would be
+                # swept into the commit. A restoration to HEAD is a safe no-op.
+                violations = [
+                    v
+                    for v in plan.violations
+                    if v.line is not None and Path(v.file_path).absolute() == leaf
+                ]
+                with tempfile.TemporaryDirectory(prefix="constitution-preflight-") as temp_dir:
+                    candidate = Path(temp_dir) / "candidate.md"
+                    shutil.copy2(leaf, candidate)
+                    simulation = ConstitutionFixer(Path(temp_dir))
+                    simulation._apply_content_fix(
+                        candidate, violations, dry_run=False, interactive=False
+                    )
+                    indexed = subprocess.check_output(  # nosec B603 - fixed Git argv
+                        [git_executable, "show", f":{name}"], cwd=root
+                    )
+                    if candidate.read_bytes() != indexed:
+                        print(
+                            f"Refusing commit: unrelated unstaged edits in content source: {name}",
+                            file=sys.stderr,
+                        )
+                        return EXIT_EXECUTION_ERROR
 
         # HEAD paths also protect user-staged deletions of old destinations.
         occupied = head_paths | index_paths

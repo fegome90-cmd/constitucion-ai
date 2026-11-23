@@ -319,7 +319,11 @@ class ConstitutionFixer:
                         raise ValueError(f"Stale scan at {content_path}:{violation.line}")
                     scanned_line = scanned_lines[violation.line - 1]
                     match = compile_pattern(violation.pattern).match(scanned_line, position)
-                    if match is None or match.end() != position + len(violation.match):
+                    if (
+                        match is None
+                        or match.end() != position + len(violation.match)
+                        or scanned_line[position : match.end()] != violation.match
+                    ):
                         raise ValueError(f"Stale scan at {content_path}:{violation.line}")
                     try:
                         match.expand(violation.suggestion)
@@ -494,43 +498,24 @@ class ConstitutionFixer:
 
     def generate_diff(self, plan: FixPlan) -> str:
         """Preview all reported path and content changes without modifying files."""
-        self.planned_path_renames(plan)
+        ordered_renames = self.planned_path_renames(plan)
         diff_lines: list[str] = []
+        # Show the real deepest-first filesystem operations in their apply order.
+        for source, destination in ordered_renames:
+            diff_lines.extend(
+                (
+                    f"--- {source}",
+                    f"+++ {destination}",
+                    "Path rename (file or directory will be moved)",
+                )
+            )
+
         by_file: dict[str, list[Violation]] = {}
         for violation in plan.violations:
             by_file.setdefault(violation.file_path, []).append(violation)
 
-        seen_renames: set[tuple[Path, Path]] = set()
         for filename, violations in sorted(by_file.items()):
             path = Path(filename).absolute()
-            path_fixes = [
-                v
-                for v in violations
-                if v.violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
-            ]
-            for violation in path_fixes:
-                if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
-                    assert violation.column is not None
-                    end = violation.column + len(violation.match)
-                    source_path = Path(filename[:end].rstrip("/\\")).absolute()
-                else:
-                    source_path = path
-                destination = source_path.with_name(violation.suggestion.rstrip("/\\"))
-                if (
-                    not source_path.is_relative_to(self.base_path)
-                    or not destination.is_relative_to(self.base_path)
-                    or (source_path, destination) in seen_renames
-                ):
-                    continue
-                seen_renames.add((source_path, destination))
-                diff_lines.extend(
-                    (
-                        f"--- {source_path}",
-                        f"+++ {destination}",
-                        "Path rename (file or directory will be moved)",
-                    )
-                )
-
             content_fixes = [
                 v
                 for v in violations

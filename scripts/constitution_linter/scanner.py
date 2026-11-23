@@ -257,6 +257,10 @@ class ConstitutionScanner:
             # On POSIX a backslash is a filename character, not a separator.
             # Use the native path separator for both sides of alias components.
             if violation_type == ViolationType.DIRECTORY_ALIAS:
+                # On POSIX a matched literal backslash belongs to the directory
+                # name; it is not a separator for an alias like .claude.
+                if os.sep != "\\" and match.group().endswith("\\"):
+                    continue
                 # A regex may consume the separator or stop just before it,
                 # as with a custom lookahead pattern.
                 after_match = match.end() < len(full_path) and full_path[match.end()] == os.sep
@@ -270,6 +274,7 @@ class ConstitutionScanner:
                 violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
                 and match.start() > 0
                 and full_path[match.start() - 1] != os.sep
+                and not match.group().startswith(os.sep)
             ):
                 continue
             violations.append(

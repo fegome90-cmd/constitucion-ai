@@ -776,11 +776,11 @@ def test_untracked_ignored_alias_does_not_block_tracked_content_commit(
     _git(tmp_path, "config", "user.email", "test@example.invalid")
     _git(tmp_path, "config", "user.name", "Test Runner")
     tracked = tmp_path / "tracked.md"
-    tracked.write_text("baseline\n")
+    tracked.write_text("Claude\n")
     (tmp_path / ".gitignore").write_text(".ai/\n")
     _git(tmp_path, "add", "--", "tracked.md", ".gitignore")
     _git(tmp_path, "commit", "-qm", "baseline")
-    tracked.write_text("Claude\n")
+    # Tracked source is clean; only the unrelated alias directory is untracked.
     alias = tmp_path / ".claude"
     alias.mkdir()
     (alias / "untracked.md").write_text("neutral\n")
@@ -989,3 +989,103 @@ def test_invalid_regex_replacement_aborts_before_any_file_change(tmp_path: Path)
 
     with pytest_runtime.raises(ValueError, match="replacement"):
         fixer.generate_diff(plan)
+
+
+def test_content_only_autocommit_rejects_unrelated_unstaged_paragraph(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("Claude outside\nkeep original\n")
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("Claude outside\nprivate unstaged paragraph\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert target.read_text() == "Claude outside\nprivate unstaged paragraph\n"
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+
+
+def test_edited_gitignore_and_alias_rename_rejected_before_files_change(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / ".gitignore").write_text("Claude*\n")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "AI-notes.md").write_text("neutral\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert (tmp_path / ".gitignore").read_text() == "Claude*\n"
+    assert (directory / "AI-notes.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+
+
+def test_stale_case_changed_scan_aborts_all_content_fixes(tmp_path: Path) -> None:
+    a = tmp_path / "a.md"
+    b = tmp_path / "b.md"
+    a.write_text("Claude\n")
+    b.write_text("Claude\n")
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(ConstitutionScanner().scan_path(tmp_path))
+    b.write_text("claude\n")
+
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert not result.success
+    assert "stale" in (result.error_message or "").lower()
+    assert a.read_text() == "Claude\n"
+    assert b.read_text() == "claude\n"
+
+
+def test_posix_literal_backslash_alias_directory_not_renamed(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    directory = tmp_path / ".claude\\"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    assert ConstitutionScanner().scan_path(tmp_path).passed
+    assert main(["fix", str(tmp_path)]) == 0
+    assert (directory / "note.md").read_text() == "neutral\n"
+    assert not (tmp_path / ".ai").exists()
+
+
+def test_custom_directory_pattern_can_consume_leading_separator(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    pattern = Pattern(
+        pattern=r"/\.claude/",
+        suggestion=".ai/",
+        severity=Severity.CRITICAL,
+        rule_id="DIR-LEAD",
+        scope=MatchScope.FILE_PATH,
+    )
+    scan = ConstitutionScanner(patterns=[pattern]).scan_path(tmp_path)
+    assert scan.total_violations == 1
+
+
+def test_nested_dry_run_lists_actual_rename_operation_order(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / ".cursorrules").write_text("neutral\n")
+    assert main(["fix", str(tmp_path), "--dry-run"]) == 2
+    output = capsys.readouterr().out
+    child = f"--- {directory / '.cursorrules'}\n+++ {directory / '.airules'}"
+    parent = f"--- {directory}\n+++ {tmp_path / '.ai'}"
+    assert child in output
+    assert parent in output
+    assert output.index(child) < output.index(parent)
