@@ -555,6 +555,28 @@ def _preflight_commit_destinations(path: Path, plan: FixPlan, fixer: Constitutio
                 )
                 return EXIT_EXECUTION_ERROR
 
+        # A rename may otherwise commit unrelated unstaged edits from a
+        # tracked leaf. Leave preexisting deletions alone (they are absent).
+        unstaged_paths = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv
+                [git_executable, "diff", "--name-only", "-z"], cwd=root
+            )
+            .decode("utf-8", "surrogateescape")
+            .split("\0")
+        )
+        for name in unstaged_paths:
+            if name not in index_paths:
+                continue
+            leaf = root / name
+            if not leaf.exists() and not leaf.is_symlink():
+                continue
+            if any(leaf == src or leaf.is_relative_to(src) for src, _ in ordered_renames):
+                print(
+                    f"Refusing commit: unstaged edits in rename source: {name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+
         # HEAD paths also protect user-staged deletions of old destinations.
         occupied = head_paths | index_paths
         occupied_sorted = sorted(occupied)

@@ -256,10 +256,12 @@ class ConstitutionScanner:
         for match in compiled.finditer(full_path):
             # On POSIX a backslash is a filename character, not a separator.
             # Use the native path separator for both sides of alias components.
-            if violation_type == ViolationType.DIRECTORY_ALIAS and not match.group().endswith(
-                os.sep
-            ):
-                continue
+            if violation_type == ViolationType.DIRECTORY_ALIAS:
+                # A regex may consume the separator or stop just before it,
+                # as with a custom lookahead pattern.
+                after_match = match.end() < len(full_path) and full_path[match.end()] == os.sep
+                if not (match.group().endswith(os.sep) or after_match):
+                    continue
             # A file alias must match the complete basename, not .cursorrules.local
             # or a directory named .cursorrules.
             if violation_type == ViolationType.FILE_ALIAS and match.end() != len(full_path):

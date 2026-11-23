@@ -897,3 +897,95 @@ def test_dry_run_reports_conflicting_alias_targets(
     assert "Conflicting rename destination" in out.err
     assert (tmp_path / ".claude" / "note.md").exists()
     assert (tmp_path / ".cursor" / "note.md").exists()
+
+
+def test_directory_autocommit_rejects_unstaged_tracked_draft(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    target = directory / "note.md"
+    target.write_text("neutral baseline\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    old_head = _git(tmp_path, "rev-parse", "HEAD")
+    target.write_text("unrelated local draft\n")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert target.read_text() == "unrelated local draft\n"
+    assert not (tmp_path / ".ai").exists()
+    assert _git(tmp_path, "rev-parse", "HEAD") == old_head
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
+    assert _git(tmp_path, "diff", "--name-only") == ".claude/note.md"
+
+
+def test_dry_run_rejects_preexisting_destination(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    (tmp_path / ".ai").mkdir()
+    assert main(["fix", str(tmp_path), "--dry-run"]) == 4
+    assert "destination" in capsys.readouterr().err.lower()
+    assert (directory / "note.md").is_file()
+
+
+def test_custom_directory_pattern_may_end_before_separator(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    directory = tmp_path / ".claude"
+    directory.mkdir()
+    (directory / "note.md").write_text("neutral\n")
+    rule = Pattern(
+        pattern=r"\.claude(?=/)",
+        suggestion=".ai/",
+        severity=Severity.CRITICAL,
+        rule_id="DIR-CUSTOM",
+        scope=MatchScope.FILE_PATH,
+    )
+    scanner = ConstitutionScanner(patterns=[rule])
+    scan = scanner.scan_path(tmp_path)
+    assert scan.total_violations == 1
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success, result.error_message
+    assert (tmp_path / ".ai" / "note.md").read_text() == "neutral\n"
+
+
+def test_invalid_regex_replacement_aborts_before_any_file_change(tmp_path: Path) -> None:
+    from constitution_linter import MatchScope, Pattern, Severity
+
+    first = tmp_path / "a.md"
+    second = tmp_path / "b.md"
+    first.write_text("Claude\n")
+    second.write_text("Gemini\n")
+    rules = [
+        Pattern(
+            pattern="Claude",
+            suggestion="AI",
+            severity=Severity.WARNING,
+            rule_id="TXT-OK",
+            scope=MatchScope.FILE_CONTENT,
+        ),
+        Pattern(
+            pattern=r"(Gemini)",
+            suggestion=r"\g<unknown>",
+            severity=Severity.WARNING,
+            rule_id="TXT-INVALID",
+            scope=MatchScope.FILE_CONTENT,
+        ),
+    ]
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(ConstitutionScanner(patterns=rules).scan_path(tmp_path))
+    outcome = fixer.apply_plan(plan, create_backup=False)
+    assert not outcome.success
+    assert "replacement" in (outcome.error_message or "").lower()
+    assert first.read_text() == "Claude\n"
+    assert second.read_text() == "Gemini\n"
+
+    import pytest as pytest_runtime
+
+    with pytest_runtime.raises(ValueError, match="replacement"):
+        fixer.generate_diff(plan)

@@ -255,6 +255,15 @@ class ConstitutionFixer:
                 )
             renames[source] = destination
             reverse[destination] = source
+        # Shared with both dry-run previews and actual application: never
+        # advertise a move that would overwrite an existing path.
+        for source, destination in renames.items():
+            self._validate_path_in_base(source)
+            self._validate_path_in_base(destination)
+            if not source.exists() or source.is_symlink():
+                raise FileNotFoundError(f"Rename source missing or symlink: {source}")
+            if destination.exists() or destination.is_symlink():
+                raise FileExistsError(f"Rename destination already exists: {destination}")
         return tuple(sorted(renames.items(), key=lambda item: len(item[0].parts), reverse=True))
 
     def apply_plan(
@@ -297,6 +306,27 @@ class ConstitutionFixer:
                     raise FileNotFoundError(f"Rename source missing or symlink: {source}")
                 if destination.exists() or destination.is_symlink():
                     raise FileExistsError(f"Rename destination already exists: {destination}")
+
+            # Validate every custom replacement template before touching any file,
+            # so an invalid backreference in a later file cannot leave partial edits.
+            for content_path, matches in content_edits.items():
+                scanned_lines = content_path.read_text(encoding="utf-8").split("\n")
+                for violation in matches:
+                    if violation.line is None or violation.column is None:
+                        raise ValueError(f"Content violation missing location: {violation}")
+                    position = violation.column - 1
+                    if violation.line > len(scanned_lines):
+                        raise ValueError(f"Stale scan at {content_path}:{violation.line}")
+                    scanned_line = scanned_lines[violation.line - 1]
+                    match = compile_pattern(violation.pattern).match(scanned_line, position)
+                    if match is None or match.end() != position + len(violation.match):
+                        raise ValueError(f"Stale scan at {content_path}:{violation.line}")
+                    try:
+                        match.expand(violation.suggestion)
+                    except (IndexError, re.error) as exc:
+                        raise ValueError(
+                            f"Invalid replacement for {violation.pattern.rule_id}"
+                        ) from exc
 
             if create_backup and not dry_run:
                 sources = list(dict.fromkeys([*content_edits, *renames]))
@@ -433,7 +463,7 @@ class ConstitutionFixer:
                     raise ValueError(f"Stale regex match at {file_path}:{line_index + 1}")
                 try:
                     replacement = matched.expand(violation.suggestion)
-                except re.error as exc:
+                except (IndexError, re.error) as exc:
                     raise ValueError(
                         f"Invalid replacement for {violation.pattern.rule_id}"
                     ) from exc
@@ -542,7 +572,13 @@ class ConstitutionFixer:
                 ):
                     match = compile_pattern(violation.pattern).match(before, begin)
                     if match is not None and match.end() == end:
-                        after = after[:begin] + match.expand(violation.suggestion) + after[end:]
+                        try:
+                            replacement = match.expand(violation.suggestion)
+                        except (IndexError, re.error) as exc:
+                            raise ValueError(
+                                f"Invalid replacement for {violation.pattern.rule_id}"
+                            ) from exc
+                        after = after[:begin] + replacement + after[end:]
                 if after != before:
                     changes.append((index + 1, before, after))
 
