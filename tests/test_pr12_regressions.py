@@ -499,3 +499,26 @@ def test_ci_separates_offline_checks_from_starter_smokes() -> None:
     assert any(
         step.get("name") == "Set up Java 21" for step in jobs["starter-integration"]["steps"]
     )
+
+
+def test_commit_skips_prior_unstaged_deleted_descendant(tmp_path: Path) -> None:
+    """A file deleted before scanning is not part of the rename to auto-commit."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    alias = tmp_path / ".claude"
+    alias.mkdir()
+    kept = alias / "kept.md"
+    deleted = alias / "deleted.md"
+    kept.write_text("keep me\n")
+    deleted.write_text("delete me\n")
+    _git(tmp_path, "add", "--", ".claude")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    deleted.unlink()
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (tmp_path / ".ai" / "kept.md").read_text() == "keep me\n"
+    committed = _git(tmp_path, "show", "--no-renames", "--pretty=", "--name-only", "HEAD")
+    assert committed.splitlines() == [".ai/kept.md", ".claude/kept.md"]
+    assert _git(tmp_path, "diff", "--name-only") == ".claude/deleted.md"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == ""

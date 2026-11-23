@@ -375,6 +375,7 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
             .split("\0")
         )
         touched = {Path(name) for name in fix_result.files_modified}
+        scanned_files = {Path(v.file_path) for v in plan.violations}
         renames = [(Path(src), Path(dst)) for src, dst in fix_result.path_renames]
 
         paths_to_commit: set[str] = set()
@@ -392,11 +393,13 @@ def _run_commit_step(path: Path, plan: FixPlan, fix_result: FixResult) -> int:
                 if final == source or final.is_relative_to(source):
                     final = destination / final.relative_to(source)
 
-            # A vanished original still needs its deletion staged if it was tracked.
-            paths_to_commit.add(str(original.relative_to(root)))
-            # A tracked leaf replaced by a directory must not stage its contents.
+            # A previously deleted, unscanned descendant is outside this fix.
+            # Do not stage that pre-existing deletion or treat it as a rename failure.
             if not final.is_file() and not final.is_symlink():
+                if not final.exists() and original not in scanned_files:
+                    continue
                 raise ValueError(f"Tracked fix target is not a file: {final}")
+            paths_to_commit.add(str(original.relative_to(root)))
             paths_to_commit.add(str(final.relative_to(root)))
 
         if not paths_to_commit:
