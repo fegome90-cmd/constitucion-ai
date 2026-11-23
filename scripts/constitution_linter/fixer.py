@@ -253,6 +253,16 @@ class ConstitutionFixer:
                     raise ValueError(f"Conflicting rename for {source}")
                 renames[source] = destination
 
+            # Reject two distinct sources targeting the same destination before edits.
+            destinations: dict[Path, Path] = {}
+            for source, destination in renames.items():
+                other = destinations.get(destination)
+                if other is not None and other != source:
+                    raise ValueError(
+                        f"Conflicting rename destination {destination}: {other} and {source}"
+                    )
+                destinations[destination] = source
+
             # Validate all targets before touching any file.
             for source in content_edits:
                 self._validate_path_in_base(source)
@@ -278,16 +288,34 @@ class ConstitutionFixer:
                     )
 
             # Edits must use original paths; the path aliases are renamed afterwards.
+            original_sources = set(content_edits) | set(renames)
+            ordered_renames = sorted(
+                renames.items(), key=lambda item: len(item[0].parts), reverse=True
+            )
             for source, violations in content_edits.items():
                 if self._apply_content_fix(source, violations, dry_run, interactive):
                     modified.append(str(source))
 
             # Deepest first, to support nested aliases without invalidating child paths.
-            for source, destination in sorted(
-                renames.items(), key=lambda item: len(item[0].parts), reverse=True
-            ):
+            for source, destination in ordered_renames:
                 if self._apply_path_fix(source, destination, dry_run):
                     modified.extend((str(source), str(destination)))
+
+            # Commit only original sources and final destinations; nested renames
+            # can create transient paths that no longer exist after their parent moves.
+            originally_modified = {
+                Path(path) for path in modified if Path(path) in original_sources
+            }
+            final_modified = {Path(path) for path in modified}
+            for source, destination in ordered_renames:
+                final_modified = {
+                    destination / path.relative_to(source)
+                    if path == source or path.is_relative_to(source)
+                    else path
+                    for path in final_modified
+                }
+            final_modified = {path for path in final_modified if dry_run or path.exists()}
+            modified = [str(path) for path in sorted(originally_modified | final_modified)]
         except (OSError, ValueError, PathSecurityError) as exc:
             return FixResult(
                 plan=updated_plan,
@@ -327,7 +355,10 @@ class ConstitutionFixer:
         if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
             return False
 
-        lines = file_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        # Preserve CRLF while matching the scanner's LF-only logical boundaries.
+        # splitlines() incorrectly splits within a scanned U+2028 line.
+        with file_path.open("r", encoding="utf-8", newline="") as stream:
+            lines = stream.read().split("\n")
         by_line: dict[int, list[Violation]] = {}
         for violation in violations:
             if violation.line is None or violation.column is None:
@@ -378,8 +409,8 @@ class ConstitutionFixer:
             dir=file_path.parent, prefix=f".{file_path.name}.", suffix=".tmp"
         )
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as stream:
-                stream.writelines(lines)
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                stream.write("\n".join(lines))
             os.chmod(temp_path, file_mode)
             os.replace(temp_path, file_path)
         finally:

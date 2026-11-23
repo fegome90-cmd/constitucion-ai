@@ -195,3 +195,75 @@ def test_run_all_commit_uses_literal_paths_for_glob_metacharacters(
     assert target.read_text(encoding="utf-8") == "AI outside\n"
     assert _git(tmp_path, "show", "--pretty=", "--name-only", "HEAD") == "file[1].md"
     assert _git(tmp_path, "diff", "--cached", "--name-only") == "file1.md"
+
+
+def test_conflicting_alias_directories_rejected_before_any_edit(tmp_path: Path) -> None:
+    """Two distinct sources targeting .ai must not mutate either source."""
+    claude = tmp_path / ".claude"
+    cursor = tmp_path / ".cursor"
+    claude.mkdir()
+    cursor.mkdir()
+    first = claude / "note.md"
+    second = cursor / "other.md"
+    first.write_text("Claude outside\n", encoding="utf-8")
+    second.write_text("Cursor outside\n", encoding="utf-8")
+
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(
+        fixer.create_plan(ConstitutionScanner().scan_path(tmp_path)),
+        create_backup=False,
+    )
+    assert not result.success
+    assert ".ai" in (result.error_message or "")
+    assert first.read_text(encoding="utf-8") == "Claude outside\n"
+    assert second.read_text(encoding="utf-8") == "Cursor outside\n"
+    assert not (tmp_path / ".ai").exists()
+
+
+def test_nested_renames_commit_final_paths_not_transient_paths(tmp_path: Path) -> None:
+    """Rename both .claude/ and its child .cursorrules in one exact Git commit."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    claude = tmp_path / ".claude"
+    claude.mkdir()
+    (claude / ".cursorrules").write_text("neutral content\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", ".claude")
+    _git(tmp_path, "commit", "-qm", "initial")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (tmp_path / ".ai" / ".airules").read_text() == "neutral content\n"
+    assert not claude.exists()
+    assert _git(tmp_path, "status", "--porcelain") == ""
+    assert _git(tmp_path, "show", "--no-renames", "--pretty=", "--name-only", "HEAD") == (
+        ".ai/.airules\n.claude/.cursorrules"
+    )
+
+
+def test_non_lf_separator_is_not_a_line_boundary(tmp_path: Path) -> None:
+    """Scanner and fixer agree on unicode separator and preserve CRLF bytes."""
+    target = tmp_path / "note.md"
+    target.write_bytes("prefix\u2028Claude\r\nOther\r\n".encode())
+    scan = ConstitutionScanner().scan_path(target)
+    assert any(v.line == 1 and v.column == 8 for v in scan.all_violations)
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_bytes() == "prefix\u2028AI\r\nOther\r\n".encode()
+
+
+def test_literal_wildcard_filename_not_a_commit_glob(tmp_path: Path) -> None:
+    """Literal '*' filename never incorporates unrelated staged changes."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    (tmp_path / "*.md").write_text("Claude outside\n", encoding="utf-8")
+    (tmp_path / "notes.md").write_text("original\n", encoding="utf-8")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "initial")
+    (tmp_path / "notes.md").write_text("staged unrelated\n", encoding="utf-8")
+    _git(tmp_path, "add", "--", "notes.md")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert _git(tmp_path, "show", "--pretty=", "--name-only", "HEAD") == "*.md"
+    assert _git(tmp_path, "diff", "--cached", "--name-only") == "notes.md"

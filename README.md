@@ -53,7 +53,7 @@ git clone https://github.com/fegome90-cmd/constitucion-ai.git
 cd constitucion-ai
 ```
 
-Para ejecutar el linter y sus pruebas: `uv sync --frozen` y `uv run --frozen pytest tests/ -q`. Los starters se exportan mediante `python3 scripts/scaffold.py --list` y `python3 tooling/audit.py --run-gates`; esta última opción ejecuta comandos del catálogo y debe usarse solo con checkouts confiables.
+Para ejecutar el linter y sus pruebas: `uv sync --frozen` y `uv run --frozen pytest tests/ -q`. Para listar los starters: `python3 scripts/scaffold.py --list`. Para **exportar un proyecto utilizable**: `python3 scripts/scaffold.py --template python --name mi-proyecto --output ..`. La auditoría `python3 tooling/audit.py --run-gates` crea proyectos temporales y ejecuta comandos del catálogo; úsala solo con checkouts confiables.
 
 ## Uso Rápido
 
