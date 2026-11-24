@@ -1934,7 +1934,7 @@ def test_custom_yaml_rule_cannot_inherit_builtin_reference_exemption(tmp_path: P
     )
 
 
-def test_canonical_reference_directional_boundaries(tmp_path):
+def test_canonical_reference_directional_boundaries(tmp_path: Path) -> None:
     path = tmp_path / "note.md"
     path.write_text(
         "docs/CLAUDE.md[backup].bak\n"
