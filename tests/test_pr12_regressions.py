@@ -1790,3 +1790,98 @@ def test_canonical_filename_has_delimited_component_boundaries(tmp_path: Path) -
         "CLAUDE.md:14",
     ]
     assert target.read_text().splitlines() == expected
+
+
+def test_canonical_references_preserve_paired_formatting_and_numeric_boundaries(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "references.md"
+    original = [
+        "**CLAUDE.md**",
+        "**Read CLAUDE.md**",
+        "**CLAUDE.md is the policy**",
+        "**Read docs/CLAUDE.md**",
+        "**See CLAUDE.md:14**",
+        "**_CLAUDE.md_**",
+        "**See _CLAUDE.md_**",
+        "“CLAUDE.md”",
+        "«docs/CLAUDE.md»",
+        "_CLAUDE.md_",
+        "***docs/CLAUDE.md***.",
+        "~~CLAUDE.md~~",
+        "**docs/MY+CLAUDE.md**",
+        "**Read docs/MY+CLAUDE.md**",
+        "docs/CLAUDE.md~",
+        "MY_CLAUDE.md",
+        "CLAUDE.md:14draft",
+        "CLAUDE.md:14.bak",
+        "CLAUDE.md?backup",
+        "**_CLAUDE.md_**suffix",
+        "CLAUDE.md**",
+        "CLAUDE.md:14:2",
+        "[guide](CLAUDE.md#intro)",
+        "[guide](/repo/CLAUDE.md?plain=1)",
+    ]
+    expected = [
+        "**CLAUDE.md**",
+        "**Read CLAUDE.md**",
+        "**CLAUDE.md is the policy**",
+        "**Read docs/CLAUDE.md**",
+        "**See CLAUDE.md:14**",
+        "**_CLAUDE.md_**",
+        "**See _CLAUDE.md_**",
+        "“CLAUDE.md”",
+        "«docs/CLAUDE.md»",
+        "_CLAUDE.md_",
+        "***docs/CLAUDE.md***.",
+        "~~CLAUDE.md~~",
+        "**docs/MY+AI.md**",
+        "**Read docs/MY+AI.md**",
+        "docs/AI.md~",
+        "MY_AI.md",
+        "AI.md:14draft",
+        "AI.md:14.bak",
+        "AI.md?backup",
+        "**_AI.md_**suffix",
+        "AI.md**",
+        "CLAUDE.md:14:2",
+        "[guide](CLAUDE.md#intro)",
+        "[guide](/repo/CLAUDE.md?plain=1)",
+    ]
+    target.write_text(chr(10).join(original) + chr(10), encoding="utf-8")
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text(encoding="utf-8").splitlines() == expected
+
+
+def test_stale_plan_cannot_rewrite_new_canonical_reference(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("**CLAUDE.md~**" + chr(10), encoding="utf-8")
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(ConstitutionScanner().scan_path(target))
+    assert plan.violations
+    canonical = "**CLAUDE.md**" + chr(10)
+    target.write_text(canonical, encoding="utf-8")
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert not result.success
+    assert "stale" in (result.error_message or "").lower()
+    assert target.read_text(encoding="utf-8") == canonical
+
+
+def test_custom_text_rule_is_not_exempted_as_builtin_reference(tmp_path: Path) -> None:
+    from constitution_linter.types import MatchScope, Pattern, Severity
+
+    target = tmp_path / "note.md"
+    target.write_text("CLAUDE.md" + chr(10), encoding="utf-8")
+    custom = Pattern(
+        pattern="[Cc]laude",
+        suggestion="AI",
+        severity=Severity.CRITICAL,
+        rule_id="TXT-001",
+        description="Custom policy",
+        scope=MatchScope.FILE_CONTENT,
+    )
+    scanner = ConstitutionScanner(patterns=[custom])
+    plan = ConstitutionFixer(tmp_path).create_plan(scanner.scan_path(target))
+    result = ConstitutionFixer(tmp_path).apply_plan(plan, create_backup=False)
+    assert result.success
+    assert target.read_text(encoding="utf-8") == "AI.md" + chr(10)

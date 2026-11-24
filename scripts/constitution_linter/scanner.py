@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING, Final
 
 from markdown_it import MarkdownIt
 
-from .patterns import compile_pattern, get_default_patterns, get_violation_type
+from .patterns import (
+    compile_pattern,
+    get_default_patterns,
+    get_violation_type,
+    is_protected_content_match,
+)
 from .types import (
     MAX_CONTEXT_LENGTH,
     MAX_FILE_SIZE_BYTES,
@@ -326,6 +331,8 @@ class ConstitutionScanner:
                 continue
 
             for match in compiled.finditer(line):
+                if is_protected_content_match(pattern, match):
+                    continue
                 violations.append(
                     Violation(
                         file_path=str(file_path),

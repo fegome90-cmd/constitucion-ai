@@ -13,6 +13,7 @@ SEG-004: Includes ReDoS validation for regex patterns.
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -148,17 +149,11 @@ FILE_ALIAS_PATTERNS: Final[list[dict[str, Any]]] = [
 ]
 
 # Text references that violate neutrality
+_CLAUDE_MODEL_PATTERN = r"[Cc]laude"
 TEXT_REFERENCE_PATTERNS: Final[list[dict[str, Any]]] = [
     {
-        # Text references, not arbitrary filesystem names: protect the exact
-        # canonical component at explicit path/prose boundaries, including
-        # link fragments and numeric line references. Adjacent filename
-        # characters (+, ~, @, suffixes, etc.) do not qualify.
-        "pattern": (
-            r"""(?:(?<=[^\s/\\'"`(\[<{])[Cc]laude|"""
-            r"""[Cc]laude(?!\.md(?=$|[\s/\\'"`)\]}>#]|:\d|"""
-            r"""[.,;:!?](?=$|[\s'"`)\]}>]))))"""
-        ),
+        # Detection stays separate from the shared contextual exemption.
+        "pattern": _CLAUDE_MODEL_PATTERN,
         "suggestion": "AI",
         "severity": "critical",
         "rule_id": "TXT-001",
@@ -304,11 +299,128 @@ def get_violation_type(pattern: Pattern) -> ViolationType:
 
 
 def compile_pattern(pattern: Pattern) -> re.Pattern[str]:
-    """Compile a pattern with appropriate flags."""
+    """Compile detection regex; contextual exemptions are checked separately."""
     flags = 0
     if not pattern.case_sensitive:
         flags |= re.IGNORECASE
     return re.compile(pattern.pattern, flags)
+
+
+_REFERENCE_WRAPPER = re.compile(r"\*{1,3}|_{1,3}|~{2}")
+_LINE_REFERENCE = re.compile(r":\d+(?::\d+)?")
+_QUERY_REFERENCE = re.compile(r"\?[A-Za-z0-9_.~-]+=")
+_SENTENCE_PUNCTUATION = ".,;:!?"
+
+
+def _is_text_delimiter(char: str) -> bool:
+    """Text boundaries, including Unicode quotation and bracket pairs."""
+    return (
+        char.isspace()
+        or char in {"'", '"', "`", "<", ">"}
+        or unicodedata.category(char) in {"Ps", "Pe", "Pi", "Pf"}
+    )
+
+
+def _is_reference_boundary(line: str, index: int) -> bool:
+    return index == len(line) or _is_text_delimiter(line[index]) or line[index] in "/\\"
+
+
+def _reference_end(line: str, index: int) -> bool:
+    """A complete component, URL fragment/query or numeric line/column reference."""
+    if (
+        _is_reference_boundary(line, index)
+        or line[index] == "#"
+        or _QUERY_REFERENCE.match(line, index) is not None
+    ):
+        return True
+    number = _LINE_REFERENCE.match(line, index)
+    if number is not None:
+        index = number.end()
+        if _is_reference_boundary(line, index):
+            return True
+    return line[index] in _SENTENCE_PUNCTUATION and _is_reference_boundary(line, index + 1)
+
+
+def _delimited_reference(line: str, start: int, end: int) -> bool:
+    left = start == 0 or _is_reference_boundary(line, start - 1)
+    return left and _reference_end(line, end)
+
+
+def _formatting_end(line: str, index: int, outer: list[re.Match[str]]) -> bool:
+    """Accept adjacent closing markers only when their full chain is delimited."""
+    for opener in reversed(outer):
+        if not line.startswith(opener.group(), index):
+            break
+        index += len(opener.group())
+    return (
+        index == len(line)
+        or _is_text_delimiter(line[index])
+        or (line[index] in _SENTENCE_PUNCTUATION and _is_reference_boundary(line, index + 1))
+    )
+
+
+def _wrapped_reference(line: str, start: int, end: int) -> bool:
+    """Recognize balanced formatting around a token or a phrase.
+
+    An unmatched marker or a marker inside a compound filename does not
+    qualify as a delimiter. Check the same component grammar inside the pair.
+    """
+    suffix = end
+    number = _LINE_REFERENCE.match(line, suffix)
+    if number is not None:
+        suffix = number.end()
+    if suffix < len(line) and line[suffix] in _SENTENCE_PUNCTUATION:
+        suffix += 1
+    if not (
+        (start > 0 and line[start - 1] in "*_~") or (suffix < len(line) and line[suffix] in "*_~")
+    ):
+        return False
+    stack: list[re.Match[str]] = []
+    for marker in _REFERENCE_WRAPPER.finditer(line):
+        left, right = marker.span()
+        opens = (
+            (left == 0 or _is_text_delimiter(line[left - 1]) or (stack and stack[-1].end() == left))
+            and right < len(line)
+            and not line[right].isspace()
+        )
+        closes = (
+            left > 0
+            and not line[left - 1].isspace()
+            and bool(stack)
+            and stack[-1].group() == marker.group()
+            and _formatting_end(line, right, stack[:-1])
+        )
+        if closes:
+            opener = stack.pop()
+            if opener.end() <= start and end <= left:
+                inner = line[opener.end() : left]
+                if _delimited_reference(inner, start - opener.end(), end - opener.end()):
+                    return True
+        elif opens:
+            stack.append(marker)
+    return False
+
+
+def is_protected_content_match(pattern: Pattern, match: re.Match[str]) -> bool:
+    """Preserve only the built-in governance filename reference, not custom rules.
+
+    Scanner and fixer use this same predicate, including stale-plan checks.
+    The grammar is for text references, not arbitrary filesystem name syntax.
+    """
+    if (
+        pattern.rule_id != "TXT-001"
+        or pattern.pattern != _CLAUDE_MODEL_PATTERN
+        or pattern.scope is not MatchScope.FILE_CONTENT
+        or pattern.suggestion != "AI"
+        or pattern.description != "Typo 'Claude' should be 'AI'"
+    ):
+        return False
+    line = match.string
+    start = match.start()
+    end = match.end() + len(".md")
+    if line[match.end() : end].casefold() != ".md":
+        return False
+    return _delimited_reference(line, start, end) or _wrapped_reference(line, start, end)
 
 
 def validate_pattern(pattern: Pattern) -> None:
@@ -334,6 +446,7 @@ __all__ = [
     "get_default_patterns",
     "get_violation_type",
     "compile_pattern",
+    "is_protected_content_match",
     "validate_pattern",
     "DIRECTORY_ALIAS_PATTERNS",
     "FILE_ALIAS_PATTERNS",

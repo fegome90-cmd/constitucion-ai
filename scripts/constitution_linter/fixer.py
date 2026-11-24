@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final
 
-from .patterns import compile_pattern
+from .patterns import compile_pattern, is_protected_content_match
 from .types import (
     MAX_FILE_SIZE_BYTES,
     FixPlan,
@@ -376,6 +376,7 @@ class ConstitutionFixer:
                     if (
                         match is None
                         or match.end() != position + len(violation.match)
+                        or is_protected_content_match(violation.pattern, match)
                         or scanned_line[position : match.end()] != violation.match
                     ):
                         raise ValueError(f"Stale scan at {content_path}:{violation.line}")
@@ -521,7 +522,11 @@ class ConstitutionFixer:
                 elif logical_line.endswith(("\r", "\n")):
                     logical_line = logical_line[:-1]
                 matched = compile_pattern(violation.pattern).match(logical_line, start)
-                if matched is None or matched.end() != end:
+                if (
+                    matched is None
+                    or matched.end() != end
+                    or is_protected_content_match(violation.pattern, matched)
+                ):
                     raise ValueError(f"Stale regex match at {file_path}:{line_index + 1}")
                 try:
                     replacement = matched.expand(violation.suggestion)
@@ -616,7 +621,11 @@ class ConstitutionFixer:
                     accepted, key=lambda item: item[0], reverse=True
                 ):
                     match = compile_pattern(violation.pattern).match(before, begin)
-                    if match is not None and match.end() == end:
+                    if (
+                        match is not None
+                        and match.end() == end
+                        and not is_protected_content_match(violation.pattern, match)
+                    ):
                         try:
                             replacement = match.expand(violation.suggestion)
                         except (IndexError, re.error) as exc:
