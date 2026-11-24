@@ -2008,3 +2008,25 @@ def test_canonical_reference_in_compact_markdown_blockquote(tmp_path: Path) -> N
         "Claude outside.", "AI outside."
     )
     assert target.read_text(encoding="utf-8") == expected
+
+
+def test_canonical_reference_quote_context_not_restarted_inside_emphasis(tmp_path: Path) -> None:
+    from markdown_it import MarkdownIt
+
+    parser = MarkdownIt("commonmark")
+    assert parser.render("The filename is **>CLAUDE.md**.") == (
+        "<p>The filename is <strong>&gt;CLAUDE.md</strong>.</p>\n"
+    )
+    target = tmp_path / "note.md"
+    target.write_text(
+        "The filename is **>CLAUDE.md**.\n"
+        "**>CLAUDE.md**\n"
+        ">**>CLAUDE.md**\n"
+        ">**CLAUDE.md**\n"
+        "- >**CLAUDE.md**\n",
+        encoding="utf-8",
+    )
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text(encoding="utf-8") == (
+        "The filename is **>AI.md**.\n**>AI.md**\n>**>AI.md**\n>**CLAUDE.md**\n- >**CLAUDE.md**\n"
+    )

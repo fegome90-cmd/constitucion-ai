@@ -332,13 +332,13 @@ def _is_opening_text_delimiter(char: str) -> bool:
     )
 
 
-def _is_text_start(line: str, index: int) -> bool:
+def _is_text_start(line: str, index: int, *, allow_container: bool = True) -> bool:
     """A quote marker opens text only in a Markdown container prefix."""
     if index == 0:
         return True
     char = line[index - 1]
     return _is_opening_text_delimiter(char) or (
-        char == ">" and _BLOCKQUOTE_PREFIX.fullmatch(line, 0, index) is not None
+        allow_container and char == ">" and _BLOCKQUOTE_PREFIX.fullmatch(line, 0, index) is not None
     )
 
 
@@ -368,8 +368,8 @@ def _reference_end(line: str, index: int) -> bool:
     return line[index] in _SENTENCE_PUNCTUATION and _is_text_end(line, index + 1)
 
 
-def _delimited_reference(line: str, start: int, end: int) -> bool:
-    left = _is_text_start(line, start) or line[start - 1] in "/\\"
+def _delimited_reference(line: str, start: int, end: int, *, allow_container: bool = True) -> bool:
+    left = _is_text_start(line, start, allow_container=allow_container) or line[start - 1] in "/\\"
     return left and _reference_end(line, end)
 
 
@@ -419,7 +419,10 @@ def _wrapped_reference(line: str, start: int, end: int) -> bool:
             opener = stack.pop()
             if opener.end() <= start and end <= left:
                 inner = line[opener.end() : left]
-                if _delimited_reference(inner, start - opener.end(), end - opener.end()):
+                # Inline formatting is not a new block-level source line.
+                if _delimited_reference(
+                    inner, start - opener.end(), end - opener.end(), allow_container=False
+                ):
                     return True
         elif opens:
             stack.append(marker)
