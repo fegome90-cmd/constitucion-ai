@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import keyword
 import re
 import shutil
 from pathlib import Path
@@ -42,6 +43,8 @@ def make(template: str, name: str, output: Path, *, root: Path = ROOT) -> Path:
         raise ValueError("Nombre inválido: usa letras minúsculas, números y guiones")
     if template not in starters(root):
         raise ValueError("Template no reconocido")
+    if template == "python" and keyword.iskeyword(name.replace("-", "_")):
+        raise ValueError("Nombre inválido: el módulo Python sería una palabra reservada")
 
     src = root / "starters" / template
     kit = root / "templates" / template

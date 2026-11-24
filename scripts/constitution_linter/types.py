@@ -118,7 +118,7 @@ class ScanResult:
 class FixPlan:
     """A plan for fixing violations."""
 
-    violations: tuple[Violation, ...]
+    violations: tuple[Violation, ...]  # Safe fixes first, then review-only fixes
     backup_path: str | None
     created_at: str  # ISO timestamp
     total_fixes: int

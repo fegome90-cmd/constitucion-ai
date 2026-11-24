@@ -860,3 +860,12 @@ def test_check_versions_rejects_non_exact_lua_pin(tmp_path: Path, version_root: 
 
     assert result.returncode == 1
     assert "PIN NO EXACTO lua/busted>=2.3.0" in result.stdout
+
+
+def test_documented_kit_entrypoints_are_executable() -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    for script in (APPLY_KIT, CHECK_VERSIONS):
+        assert os.access(script, os.X_OK), script

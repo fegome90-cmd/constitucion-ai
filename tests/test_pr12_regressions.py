@@ -1486,3 +1486,149 @@ def test_eligible_sibling_renames_without_resurrecting_deleted_tracked_blob(
     assert _git(tmp_path, "diff", "--cached", "--name-only") == ""
     assert _git(tmp_path, "diff", "--name-only") == ".claude/.airules"
     assert _git(tmp_path, "ls-files", ".ai/.airules") == ""
+
+
+def test_content_autocommit_rejects_git_symlink_mode_before_any_edit(tmp_path: Path) -> None:
+    """A 120000 index entry is not text even when the checkout is regular."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    _git(tmp_path, "config", "core.symlinks", "false")
+    (tmp_path / "Claude.md").write_text("neutral destination\n")
+    link = tmp_path / "link.md"
+    link.write_bytes(b"Claude.md")
+    ordinary = tmp_path / "ordinary.md"
+    ordinary.write_text("Claude\n")
+    _git(tmp_path, "add", "--", "Claude.md", "ordinary.md")
+    oid = (
+        subprocess.check_output(
+            ["git", "-C", str(tmp_path), "hash-object", "-w", "--stdin"],
+            input=b"Claude.md",
+        )
+        .decode()
+        .strip()
+    )
+    _git(tmp_path, "update-index", "--add", "--cacheinfo", f"120000,{oid},link.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    head = _git(tmp_path, "rev-parse", "HEAD")
+    index = _git(tmp_path, "ls-files", "--stage")
+    assert link.is_file() and not link.is_symlink()
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 4
+    assert _git(tmp_path, "rev-parse", "HEAD") == head
+    assert _git(tmp_path, "ls-files", "--stage") == index
+    assert _git(tmp_path, "status", "--porcelain") == ""
+    assert link.read_bytes() == b"Claude.md"
+    assert ordinary.read_text() == "Claude\n"
+
+
+def test_interactive_decline_rename_preserves_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / ".cursorrules"
+    source.write_text("neutral content\n")
+    prompts: list[str] = []
+
+    def decline(prompt: str) -> str:
+        prompts.append(prompt)
+        return "n"
+
+    monkeypatch.setattr("builtins.input", decline)
+    assert main(["fix", str(tmp_path), "--interactive", "--backup"]) == 0
+    assert len(prompts) == 1
+    assert source.read_text() == "neutral content\n"
+    assert not (tmp_path / ".airules").exists()
+    assert not (tmp_path / ".backups").exists()
+
+
+def test_automatic_fix_leaves_review_required_content_unchanged(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("Claude\nExample: Cursor rules\n")
+    fixer = ConstitutionFixer(tmp_path)
+    plan = fixer.create_plan(ConstitutionScanner().scan_path(target))
+    assert plan.needs_review >= 1
+    preview = fixer.generate_diff(plan)
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_text() == "AI\nExample: Cursor rules\n"
+    assert "+Example: AI rules" not in preview
+
+
+def test_review_required_content_excluded_from_autocommit(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    safe = tmp_path / "safe.md"
+    reviewed = tmp_path / "review.md"
+    safe.write_text("Claude\n")
+    reviewed.write_text("Example: Cursor rules\n")
+    _git(tmp_path, "add", "--", "safe.md", "review.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+    oid = _git(tmp_path, "rev-parse", "HEAD:review.md")
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert _git(tmp_path, "rev-parse", "HEAD:review.md") == oid
+    assert reviewed.read_text() == "Example: Cursor rules\n"
+    assert _git(tmp_path, "show", "HEAD:safe.md") == "AI"
+    assert _git(tmp_path, "status", "--porcelain") == ""
+
+
+def test_fix_preserves_tilde_fence_and_mismatched_closer(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text(
+        "Claude outside\n~~~~python\nClaude inside\n~~~\nClaude still inside\n~~~~\nClaude outside\n"
+    )
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == (
+        "AI outside\n~~~~python\nClaude inside\n~~~\nClaude still inside\n~~~~\nAI outside\n"
+    )
+
+
+def test_backup_directory_symlink_does_not_escape_base(tmp_path: Path) -> None:
+    import os
+
+    if os.name == "nt":
+        return
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = root / "note.md"
+    target.write_text("Claude\n")
+    (root / ".backups").symlink_to(outside, target_is_directory=True)
+    fixer = ConstitutionFixer(root)
+    result = fixer.apply_plan(fixer.create_plan(ConstitutionScanner().scan_path(target)))
+    assert not result.success
+    assert target.read_text() == "Claude\n"
+    assert list(outside.iterdir()) == []
+
+
+def test_interactive_accepts_rename_and_review_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / ".cursorrules"
+    source.write_text("neutral content" + chr(10))
+    reviewed = tmp_path / "note.md"
+    reviewed.write_text("Example: Cursor rules" + chr(10))
+    prompts: list[str] = []
+
+    def accept(prompt: str) -> str:
+        prompts.append(prompt)
+        return "y"
+
+    monkeypatch.setattr("builtins.input", accept)
+    assert main(["fix", str(tmp_path), "--interactive"]) == 0
+    assert len(prompts) == 2
+    assert not source.exists()
+    assert (tmp_path / ".airules").read_text() == "neutral content" + chr(10)
+    assert reviewed.read_text() == "Example: AI rules" + chr(10)
+
+
+def test_fix_preserves_canonical_governance_filename(tmp_path: Path) -> None:
+    target = tmp_path / "policy.md"
+    target.write_text(
+        "Map authorities in CLAUDE.md or GOVERNANCE.md." + chr(10) + "Claude outside." + chr(10)
+    )
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == (
+        "Map authorities in CLAUDE.md or GOVERNANCE.md." + chr(10) + "AI outside." + chr(10)
+    )

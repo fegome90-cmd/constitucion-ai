@@ -247,7 +247,7 @@ def cmd_fix(args: argparse.Namespace) -> int:
     if args.dry_run:
         print("=== DRY RUN - No changes will be made ===\n")
         try:
-            diff = fixer.generate_diff(plan)
+            diff = fixer.generate_diff(plan, interactive=args.interactive)
         except (ValueError, PathSecurityError, OSError) as exc:
             print(f"Cannot preview changes: {exc}", file=sys.stderr)
             return EXIT_EXECUTION_ERROR
@@ -553,20 +553,16 @@ def _preflight_commit_destinations(
             )
             if original not in content_sources and not affected_by_rename:
                 continue
-            # The staging allowlist contains regular files only, but a
-            # directory rename moves *every* child. Validate tracked links
-            # and gitlinks too, before they can be relocated without staging.
-            if (
-                affected_by_rename
-                and (original.exists() or original.is_symlink())
-                and (
-                    index_modes[name] not in (b"100644", b"100755")
-                    or original.is_symlink()
-                    or not original.is_file()
-                )
+            # Apply the same Git-mode boundary to every affected tracked
+            # source, not only rename descendants. A 120000 entry can appear
+            # as editable text when core.symlinks=false.
+            if (original.exists() or original.is_symlink()) and (
+                index_modes[name] not in (b"100644", b"100755")
+                or original.is_symlink()
+                or not original.is_file()
             ):
                 print(
-                    f"Refusing commit: non-regular tracked rename source: {name}",
+                    f"Refusing commit: non-regular tracked fix source: {name}",
                     file=sys.stderr,
                 )
                 return EXIT_EXECUTION_ERROR
@@ -840,12 +836,13 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Step 2: Plan
     plan = _run_plan_step(fixer, result, reporter)
+    automatic_plan = fixer.automatic_plan(plan)
 
     # Freeze tracked source eligibility before any rename/content mutation.
     eligible_sources: set[str] = set()
     if args.commit and not args.dry_run:
         preflight_code = _preflight_commit_destinations(
-            path, plan, fixer, eligible_sources, interactive=args.interactive
+            path, automatic_plan, fixer, eligible_sources, interactive=args.interactive
         )
         if preflight_code != EXIT_SUCCESS:
             return preflight_code
@@ -864,7 +861,7 @@ def cmd_run_all(args: argparse.Namespace) -> int:
 
     # Step 5: Commit (if requested)
     if args.commit and not args.dry_run:
-        return _run_commit_step(path, plan, fix_result, frozenset(eligible_sources))
+        return _run_commit_step(path, automatic_plan, fix_result, frozenset(eligible_sources))
 
     return EXIT_SUCCESS
 

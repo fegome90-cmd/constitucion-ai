@@ -13,6 +13,7 @@ import re
 import secrets
 import tarfile
 import tempfile
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final
@@ -101,6 +102,9 @@ class ConstitutionFixer:
         needs_review: list[Violation] = []
 
         for v in violations:
+            if review_required:
+                needs_review.append(v)
+                continue
             # A path-only match without a directory/file alias requires human
             # interpretation; it is not a content span that can be autofixed.
             if v.line is None and v.violation_type not in (
@@ -118,7 +122,7 @@ class ConstitutionFixer:
                 safe_fixes.append(v)
             # Text references might need review if they could be in examples
             elif v.violation_type == ViolationType.TEXT_REFERENCE:
-                if review_required or self._in_example_context(v):
+                if self._in_example_context(v):
                     needs_review.append(v)
                 else:
                     safe_fixes.append(v)
@@ -132,6 +136,16 @@ class ConstitutionFixer:
             total_fixes=len(violations),
             safe_fixes=len(safe_fixes),
             needs_review=len(needs_review),
+        )
+
+    @staticmethod
+    def automatic_plan(plan: FixPlan) -> FixPlan:
+        """Select the safe prefix emitted by create_plan, excluding review-only fixes."""
+        if not plan.needs_review:
+            return plan
+        safe = plan.violations[: plan.safe_fixes]
+        return replace(
+            plan, violations=safe, total_fixes=len(safe), safe_fixes=len(safe), needs_review=0
         )
 
     @staticmethod
@@ -178,6 +192,8 @@ class ConstitutionFixer:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         random_suffix = secrets.token_hex(4)
         backup_path = self.backup_dir / f"backup_{timestamp}_{random_suffix}.tar.gz"
+        self._validate_path_in_base(self.backup_dir)
+        self._validate_path_in_base(backup_path)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
         with tarfile.open(backup_path, "w:gz") as tar:
@@ -206,6 +222,7 @@ class ConstitutionFixer:
         cutoff = datetime.now() - timedelta(days=BACKUP_RETENTION_DAYS)
         removed = 0
 
+        self._validate_path_in_base(self.backup_dir)
         for backup in self.backup_dir.glob("backup_*.tar.gz"):
             # Parse timestamp from filename (handle both old and new format)
             try:
@@ -277,14 +294,25 @@ class ConstitutionFixer:
         if not plan.violations:
             return FixResult(plan=plan, files_modified=(), success=True, error_message=None)
 
+        selected_plan = plan if interactive else self.automatic_plan(plan)
+        if not interactive and plan.needs_review:
+            logger.warning("Skipped %d fixes requiring human review", plan.needs_review)
+
         content_edits: dict[Path, list[Violation]] = {}
         modified: list[str] = []
         updated_plan = plan
 
         try:
-            ordered_renames = self.planned_path_renames(plan)
+            ordered_renames = self.planned_path_renames(selected_plan)
+            if interactive and not dry_run:
+                accepted_renames = []
+                for source, destination in ordered_renames:
+                    print(f"Rename: {source} -> {destination}")
+                    if input("Apply rename? [y/N] ").lower() == "y":
+                        accepted_renames.append((source, destination))
+                ordered_renames = tuple(accepted_renames)
             renames = dict(ordered_renames)
-            for violation in plan.violations:
+            for violation in selected_plan.violations:
                 if (
                     violation.violation_type
                     in (
@@ -348,7 +376,9 @@ class ConstitutionFixer:
             # Edits must use original paths; the path aliases are renamed afterwards.
             original_sources = set(content_edits) | set(renames)
             for source, violations in content_edits.items():
-                if self._apply_content_fix(source, violations, dry_run, interactive):
+                if self._apply_content_fix(
+                    source, violations, dry_run, interactive and not dry_run
+                ):
                     modified.append(str(source))
 
             # Deepest first, to support nested aliases without invalidating child paths.
@@ -391,6 +421,8 @@ class ConstitutionFixer:
         """Rename one matched path component, refusing collisions."""
         self._validate_path_in_base(source)
         self._validate_path_in_base(destination)
+        if not source.exists() or source.is_symlink():
+            raise FileNotFoundError(f"Rename source missing or symlink: {source}")
         if destination.exists() or destination.is_symlink():
             raise FileExistsError(f"Rename destination already exists: {destination}")
         if dry_run:
@@ -496,8 +528,10 @@ class ConstitutionFixer:
             Path(temp_path).unlink(missing_ok=True)
         return True
 
-    def generate_diff(self, plan: FixPlan) -> str:
-        """Preview all reported path and content changes without modifying files."""
+    def generate_diff(self, plan: FixPlan, *, interactive: bool = False) -> str:
+        """Preview eligible changes; interactive previews include review candidates."""
+        if not interactive:
+            plan = self.automatic_plan(plan)
         ordered_renames = self.planned_path_renames(plan)
         diff_lines: list[str] = []
         # Show the real deepest-first filesystem operations in their apply order.

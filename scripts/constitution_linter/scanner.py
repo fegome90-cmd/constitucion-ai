@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING, Final
 
 from .patterns import compile_pattern, get_default_patterns, get_violation_type
@@ -340,25 +341,24 @@ class ConstitutionScanner:
         - Lines with ``` in the middle (not just at start)
         """
         ranges: list[tuple[int, int]] = []
-        in_block = False
+        fence: str | None = None
         block_start = -1
 
         for i, line in enumerate(lines):
-            # Only match ``` at the START of a line (with optional whitespace)
-            stripped = line.strip()
-            if stripped.startswith("```"):
-                if not in_block:
-                    # Start of code block
-                    in_block = True
-                    block_start = i
-                else:
-                    # End of code block
-                    ranges.append((block_start, i + 1))
-                    in_block = False
-                    block_start = -1
+            match = re.match(r"^(`{3,}|~{3,})(.*)$", line.strip())
+            if match is None:
+                continue
+            marker, suffix = match.groups()
+            if fence is None:
+                fence = marker
+                block_start = i
+            elif marker[0] == fence[0] and len(marker) >= len(fence) and not suffix.strip():
+                ranges.append((block_start, i + 1))
+                fence = None
+                block_start = -1
 
-        # Handle unclosed code block (treat rest of file as code)
-        if in_block:
+        # An unclosed fence protects the remainder of the file.
+        if fence is not None:
             ranges.append((block_start, len(lines)))
 
         return ranges

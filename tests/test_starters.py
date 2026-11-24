@@ -676,3 +676,23 @@ def test_recorded_lua_check_exercises_all_gates() -> None:
 
     assert check["exit_code"] == 0
     assert "1 success / 0 failures" in check["detail"]
+
+
+def test_python_scaffold_rejects_reserved_module_name(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/scaffold.py"),
+            "--template",
+            "python",
+            "--name",
+            "class",
+            "--output",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert not (tmp_path / "class").exists()

@@ -128,11 +128,15 @@ uv run constitution-linter run-all . --commit
 
 `--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Rechaza cambios previamente preparados en las rutas que intenta corregir, destinos en conflicto y renombres de directorios que contengan reglas `.gitignore` internas. Para esos casos, ejecuta `fix` sin `--commit`, revisa el resultado y confirma manualmente; el commit automático no debe absorber trabajo ajeno. La combinación `run-all --interactive --commit` está prohibida: realiza las correcciones interactivas y el commit en pasos separados.
 
+Las correcciones marcadas como pendientes de revisión no se aplican en modo automático.
+Usa `fix --interactive` para aceptar o rechazar cada corrección de contenido y cada renombre.
+En modo interactivo, un dry run muestra las correcciones candidatas sin aplicarlas.
+
 #### Códigos de Salida
 
 | Código | Descripción |
 |--------|-------------|
-| 0 | Sin violaciones |
+| 0 | Sin violaciones en `scan`, o ejecución correcta de `plan`, `fix` y `run-all` |
 | 1 | Violaciones encontradas |
 | 2 | Dry run con violaciones |
 | 3 | Error de validación |

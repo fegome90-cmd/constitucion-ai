@@ -150,7 +150,7 @@ FILE_ALIAS_PATTERNS: Final[list[dict[str, Any]]] = [
 # Text references that violate neutrality
 TEXT_REFERENCE_PATTERNS: Final[list[dict[str, Any]]] = [
     {
-        "pattern": r"[Cc]laude",
+        "pattern": r"[Cc]laude(?!\.md\b)",
         "suggestion": "AI",
         "severity": "critical",
         "rule_id": "TXT-001",
