@@ -83,7 +83,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | sensitive-operator | sensitive_op | database | REQUIRE_APPROVAL |
 | maintainer | sensitive_op | database | REQUIRE_APPROVAL |
 
-`_ctx/policy/roles.yaml` es la ubicación propuesta para una integración futura; no existe un motor de autorización ejecutable ni un catálogo de 200+ superficies en este repositorio. Esta tabla es orientativa, no un control de acceso efectivo.
+`_ctx/policy/roles.yaml` es la ruta exigida por Ley XII para los sistemas que la implementen; no existe un motor de autorización ejecutable ni un catálogo de 200+ superficies en este repositorio. Esta tabla es orientativa, no un control de acceso efectivo.
 
 ---
 
@@ -91,7 +91,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 
 ### Configuración
 
-En un sistema que adopte esta guía, los roles deben definirse en una política explícita, por ejemplo `_ctx/policy/roles.yaml`. Aquí solo se documenta el contrato conceptual.
+En un sistema que implemente la Ley XII, los roles y el mapeo de superficies deben documentarse en `_ctx/policy/roles.yaml` (artículos 2 y 6). Aquí solo se documenta el contrato conceptual; este repositorio no implementa el motor de autorización.
 
 ### Integración con Ley VIII
 
@@ -105,4 +105,4 @@ En un sistema que adopte esta guía, los roles deben definirse en una política 
 
 - [Constitución de Código Agéntico v1.1 - Ley XII](../constitution/AGENTIC-CONSTITUTION.md#ley-xii-roles-capacidades-y-jurisdicción-operativa)
 - [Ley VIII, Art. 14 - Aprobación humana](../constitution/AGENTIC-CONSTITUTION.md#artículo-14-aprobación-humana-para-acciones-sensibles)
-- `_ctx/policy/roles.yaml` - Ubicación sugerida; no implementada en este repositorio
+- `_ctx/policy/roles.yaml` - Ruta requerida por Ley XII; no implementada en este repositorio

@@ -1494,16 +1494,16 @@ def test_content_autocommit_rejects_git_symlink_mode_before_any_edit(tmp_path: P
     _git(tmp_path, "config", "user.email", "test@example.invalid")
     _git(tmp_path, "config", "user.name", "Test Runner")
     _git(tmp_path, "config", "core.symlinks", "false")
-    (tmp_path / "Claude.md").write_text("neutral destination\n")
+    (tmp_path / "Claude-target.md").write_text("neutral destination\n")
     link = tmp_path / "link.md"
-    link.write_bytes(b"Claude.md")
+    link.write_bytes(b"Claude-target.md")
     ordinary = tmp_path / "ordinary.md"
     ordinary.write_text("Claude\n")
-    _git(tmp_path, "add", "--", "Claude.md", "ordinary.md")
+    _git(tmp_path, "add", "--", "Claude-target.md", "ordinary.md")
     oid = (
         subprocess.check_output(
             ["git", "-C", str(tmp_path), "hash-object", "-w", "--stdin"],
-            input=b"Claude.md",
+            input=b"Claude-target.md",
         )
         .decode()
         .strip()
@@ -1518,7 +1518,7 @@ def test_content_autocommit_rejects_git_symlink_mode_before_any_edit(tmp_path: P
     assert _git(tmp_path, "rev-parse", "HEAD") == head
     assert _git(tmp_path, "ls-files", "--stage") == index
     assert _git(tmp_path, "status", "--porcelain") == ""
-    assert link.read_bytes() == b"Claude.md"
+    assert link.read_bytes() == b"Claude-target.md"
     assert ordinary.read_text() == "Claude\n"
 
 

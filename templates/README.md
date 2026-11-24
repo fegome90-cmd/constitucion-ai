@@ -11,7 +11,7 @@ Todo kit sigue la misma forma, sin excepciones:
 - `EVIDENCE.md` con la tabla de la evidence bar.
 - Sin generadores, sin plantillas con estado, sin variables sin resolver.
 
-Los documentos del kit no se copian al destino; `apply-kit.sh` copia solo la configuración.
+Los documentos del kit no se copian al destino; `apply-kit.sh` copia solo la configuración. Para combinar kits que aporten el mismo nombre de archivo, sigue el [procedimiento de composición de herramientas transversales](_common/README.md#uso); el script no sobrescribe ni fusiona configuraciones existentes.
 
 ## Cómo construir un kit nuevo
 

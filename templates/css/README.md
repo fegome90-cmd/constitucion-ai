@@ -27,6 +27,6 @@ Aplicar el kit a un directorio sin `package.json` ni `biome.json` previos con el
 scripts/apply-kit.sh css <destino>
 ```
 
-El script normaliza `"name": "starter-css"` a `"name": "css-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y corre el smoke test (`biome check`, `node --test`, `vite build`). Para combinarlo con herramientas transversales, aplicar también `_common`.
+El script normaliza `"name": "starter-css"` a `"name": "css-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y corre el smoke test (`biome check`, `node --test`, `vite build`). Para combinarlo con herramientas transversales, sigue el [procedimiento de composición manual](../_common/README.md#uso): ambos kits aportan `package.json`.
 
 Los detalles de adopción están en `EVIDENCE.md`.

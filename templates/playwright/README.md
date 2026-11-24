@@ -27,6 +27,6 @@ Aplicar el kit a un directorio sin `package.json`, `biome.json`, `playwright.con
 scripts/apply-kit.sh playwright <destino>
 ```
 
-El script normaliza `"name": "starter-playwright"` a `"name": "playwright-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y ejecuta el smoke test (`biome check`, `tsc --noEmit` y `playwright test` cuando Chromium está disponible). Para combinarlo con herramientas transversales, aplicar también `_common`.
+El script normaliza `"name": "starter-playwright"` a `"name": "playwright-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y ejecuta el smoke test (`biome check`, `tsc --noEmit` y `playwright test` cuando Chromium está disponible). Para combinarlo con herramientas transversales, sigue el [procedimiento de composición manual](../_common/README.md#uso): ambos kits aportan `package.json`.
 
 Los detalles de adopción están en `EVIDENCE.md`.

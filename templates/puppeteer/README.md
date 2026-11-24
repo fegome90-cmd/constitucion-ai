@@ -28,6 +28,6 @@ Aplicar el kit a un directorio sin `package.json`, `biome.json`, `tsconfig.json`
 scripts/apply-kit.sh puppeteer <destino>
 ```
 
-El script normaliza `"name": "starter-puppeteer"` a `"name": "puppeteer-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y ejecuta el smoke test (`biome check`, `tsc --noEmit`, `tsx --test`, build y ejecución con Chrome si está disponible). Para combinarlo con herramientas transversales, aplicar también `_common`.
+El script normaliza `"name": "starter-puppeteer"` a `"name": "puppeteer-config-kit-project"`, omite `README.md` y `EVIDENCE.md`, y ejecuta el smoke test (`biome check`, `tsc --noEmit`, `tsx --test`, build y ejecución con Chrome si está disponible). Para combinarlo con herramientas transversales, sigue el [procedimiento de composición manual](../_common/README.md#uso): ambos kits aportan `package.json`.
 
 Los detalles de adopción están en `EVIDENCE.md`.

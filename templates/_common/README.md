@@ -1,6 +1,6 @@
 # Config kit: _common
 
-Herramientas transversales que no pertenecen a ningún lenguaje. Se aplica junto con el kit del lenguaje correspondiente para no ensuciar el mínimo de cada uno.
+Herramientas transversales que no pertenecen a ningún lenguaje. Se combina con el kit del lenguaje correspondiente, siempre que no se sobrescriban archivos existentes.
 
 ## Herramientas
 
@@ -15,7 +15,7 @@ La evidencia de adopción y mantenimiento está en `EVIDENCE.md`.
 
 ## Diferencias con la configuración de este repo
 
-Estos archivos se extrajeron de la configuración del repo, con dos divergencias deliberadas: no se copia la lista de palabras en español de `ignore-words-list` ni el skip de `_ctx/`, porque ambos son particulares de este proyecto y no transversales. Cualquier otra regla sí se conserva.
+Estos archivos se extrajeron de la configuración del repo, con tres divergencias deliberadas: no se copian la lista de palabras en español de `ignore-words-list`, el skip de `_ctx/` ni la excepción ortográfica de hashes SHA-512 de los lockfiles del repositorio. Cualquier otra regla sí se conserva.
 
 ## Uso
 
@@ -23,3 +23,5 @@ Estos archivos se extrajeron de la configuración del repo, con dos divergencias
 scripts/apply-kit.sh python <destino>
 scripts/apply-kit.sh _common <destino>
 ```
+
+Esta aplicación consecutiva funciona cuando no existen nombres de archivo en conflicto. Si el kit del lenguaje ya aportó un `package.json` (por ejemplo CSS, TypeScript, React, Playwright o Puppeteer), el script rechaza la segunda aplicación antes de copiar ningún archivo. Integra manualmente la dependencia transversal fijada en `templates/_common/package.json`, conservando el manifiesto existente, y las demás configuraciones que no entren en conflicto. Reconcilia el lockfile con el gestor de dependencias del proyecto; no se hace una fusión automática.

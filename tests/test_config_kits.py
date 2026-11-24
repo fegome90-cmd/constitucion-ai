@@ -869,3 +869,27 @@ def test_documented_kit_entrypoints_are_executable() -> None:
         return
     for script in (APPLY_KIT, CHECK_VERSIONS):
         assert os.access(script, os.X_OK), script
+
+
+def test_common_kit_rejects_overlapping_package_without_mutation(tmp_path: Path) -> None:
+    package = tmp_path / "package.json"
+    package.write_bytes((TEMPLATES / "css" / "package.json").read_bytes())
+    before = package.read_bytes()
+    result = run_apply_kit("_common", tmp_path)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "package.json" in result.stderr
+    assert list(tmp_path.iterdir()) == [package]
+    assert package.read_bytes() == before
+
+
+def test_common_kit_applies_without_overlapping_manifest(tmp_path: Path) -> None:
+    existing = tmp_path / "pyproject.toml"
+    existing.write_text("[project]" + chr(10) + 'name = "demo"' + chr(10))
+    before = existing.read_bytes()
+    result = run_apply_kit("_common", tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert existing.read_bytes() == before
+    assert (tmp_path / "package.json").read_bytes() == (
+        TEMPLATES / "_common" / "package.json"
+    ).read_bytes()
+    assert (tmp_path / ".markdownlint-cli2.jsonc").is_file()
