@@ -316,37 +316,40 @@ _QUERY_REFERENCE = re.compile(r"\?[A-Za-z0-9_.~-]+=")
 _SENTENCE_PUNCTUATION = ".,;:!?"
 
 
-def _is_text_delimiter(char: str) -> bool:
-    """Text boundaries, including Unicode quotation and bracket pairs."""
+def _is_opening_text_delimiter(char: str) -> bool:
     return (
-        char.isspace()
-        or char in {"'", '"', "`", "<", ">"}
-        or unicodedata.category(char) in {"Ps", "Pe", "Pi", "Pf"}
+        char.isspace() or char in {"'", '"', "`", "<"} or unicodedata.category(char) in {"Ps", "Pi"}
     )
 
 
-def _is_reference_boundary(line: str, index: int) -> bool:
-    return index == len(line) or _is_text_delimiter(line[index]) or line[index] in "/\\"
+def _is_closing_text_delimiter(char: str) -> bool:
+    return (
+        char.isspace() or char in {"'", '"', "`", ">"} or unicodedata.category(char) in {"Pe", "Pf"}
+    )
+
+
+def _is_text_end(line: str, index: int) -> bool:
+    return index == len(line) or _is_closing_text_delimiter(line[index])
 
 
 def _reference_end(line: str, index: int) -> bool:
-    """A complete component, URL fragment/query or numeric line/column reference."""
+    """Recognize a complete component, reference suffix or end of prose."""
     if (
-        _is_reference_boundary(line, index)
-        or line[index] == "#"
+        _is_text_end(line, index)
+        or line[index] in "/\\#"
         or _QUERY_REFERENCE.match(line, index) is not None
     ):
         return True
     number = _LINE_REFERENCE.match(line, index)
     if number is not None:
         index = number.end()
-        if _is_reference_boundary(line, index):
+        if _is_text_end(line, index):
             return True
-    return line[index] in _SENTENCE_PUNCTUATION and _is_reference_boundary(line, index + 1)
+    return line[index] in _SENTENCE_PUNCTUATION and _is_text_end(line, index + 1)
 
 
 def _delimited_reference(line: str, start: int, end: int) -> bool:
-    left = start == 0 or _is_reference_boundary(line, start - 1)
+    left = start == 0 or _is_opening_text_delimiter(line[start - 1]) or line[start - 1] in "/\\"
     return left and _reference_end(line, end)
 
 
@@ -356,10 +359,8 @@ def _formatting_end(line: str, index: int, outer: list[re.Match[str]]) -> bool:
         if not line.startswith(opener.group(), index):
             break
         index += len(opener.group())
-    return (
-        index == len(line)
-        or _is_text_delimiter(line[index])
-        or (line[index] in _SENTENCE_PUNCTUATION and _is_reference_boundary(line, index + 1))
+    return _is_text_end(line, index) or (
+        line[index] in _SENTENCE_PUNCTUATION and _is_text_end(line, index + 1)
     )
 
 
@@ -383,7 +384,11 @@ def _wrapped_reference(line: str, start: int, end: int) -> bool:
     for marker in _REFERENCE_WRAPPER.finditer(line):
         left, right = marker.span()
         opens = (
-            (left == 0 or _is_text_delimiter(line[left - 1]) or (stack and stack[-1].end() == left))
+            (
+                left == 0
+                or _is_opening_text_delimiter(line[left - 1])
+                or (stack and stack[-1].end() == left)
+            )
             and right < len(line)
             and not line[right].isspace()
         )

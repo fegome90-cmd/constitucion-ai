@@ -1932,3 +1932,28 @@ def test_custom_yaml_rule_cannot_inherit_builtin_reference_exemption(tmp_path: P
     assert target.read_text(encoding="utf-8") == original.replace("Claude", "AI").replace(
         "CLAUDE", "AI"
     )
+
+
+def test_canonical_reference_directional_boundaries(tmp_path):
+    path = tmp_path / "note.md"
+    path.write_text(
+        "docs/CLAUDE.md[backup].bak\n"
+        "docs/CLAUDE.md./archive\n"
+        "docs/CLAUDE.md/notes\n"
+        "(CLAUDE.md)\n"
+        "**docs/CLAUDE.md**\n"
+        "CLAUDE.md.\n",
+        encoding="utf-8",
+    )
+    scan = ConstitutionScanner().scan_path(path)
+    fixer = ConstitutionFixer(tmp_path)
+    result = fixer.apply_plan(fixer.create_plan(scan), create_backup=False)
+    assert result.success
+    assert path.read_text(encoding="utf-8") == (
+        "docs/AI.md[backup].bak\n"
+        "docs/AI.md./archive\n"
+        "docs/CLAUDE.md/notes\n"
+        "(CLAUDE.md)\n"
+        "**docs/CLAUDE.md**\n"
+        "CLAUDE.md.\n"
+    )
