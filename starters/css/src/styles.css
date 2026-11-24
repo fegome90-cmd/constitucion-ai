@@ -1,0 +1,50 @@
+@layer reset, tokens, base, components;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+@layer tokens {
+  :root {
+    --surface: #f6f4ef;
+    --foreground: #242320;
+    --card: #ffffff;
+    --radius: 1rem;
+    --space: 1.5rem;
+  }
+}
+
+@layer base {
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    color: var(--foreground);
+    background: var(--surface);
+  }
+}
+
+@layer components {
+  .page {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    padding: var(--space);
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 2rem;
+    max-width: 32rem;
+  }
+
+  @media (max-width: 40rem) {
+    .card {
+      padding: 1.25rem;
+    }
+  }
+}

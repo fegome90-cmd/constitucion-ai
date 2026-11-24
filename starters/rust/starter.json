@@ -1,0 +1,17 @@
+{
+  "id": "rust",
+  "runtime": "Rust 1.100 stable + Cargo",
+  "commands": {
+    "setup": "cargo fetch --locked",
+    "format": "cargo fmt --all",
+    "lint": "cargo clippy --all-targets -- -D warnings",
+    "typecheck": null,
+    "test": "cargo test --locked",
+    "build": "cargo build --locked",
+    "dev": "cargo run --locked",
+    "check": "cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings && cargo test --locked && cargo build --locked"
+  },
+  "notes": [
+    "rustup con componentes rustfmt y clippy; Cargo.lock incluido para proyecto sin dependencias."
+  ]
+}

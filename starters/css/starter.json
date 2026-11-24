@@ -1,0 +1,17 @@
+{
+  "id": "css",
+  "runtime": "Node.js >=22.12 + pnpm 12 (Vite)",
+  "commands": {
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+    "format": "pnpm exec biome format --write src/",
+    "lint": "pnpm exec biome check src/ tests/",
+    "typecheck": null,
+    "test": "pnpm test",
+    "build": "pnpm build",
+    "dev": "pnpm dev",
+    "check": "pnpm run check"
+  },
+  "notes": [
+    "Los tests verifican la estructura del CSS."
+  ]
+}

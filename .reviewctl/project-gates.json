@@ -1,6 +1,6 @@
 {
   "project": "constitucion-ai",
-  "description": "Constitución de Código Agéntico — repo Markdown puro",
+  "description": "Constitución de Código Agéntico — documentación, linter Python y starters; reviewctl comprueba Markdown, CI comprueba Python",
   "stack": "general",
 
   "frontend": {

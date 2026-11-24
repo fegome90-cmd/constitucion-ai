@@ -1,0 +1,15 @@
+{
+  "id": "playwright",
+  "runtime": "Node.js >=22.12 + pnpm 12 + Chromium",
+  "commands": {
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec playwright install chromium",
+    "format": "pnpm exec biome format --write .",
+    "lint": "pnpm exec biome check .",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "test": "pnpm test",
+    "build": null,
+    "dev": "pnpm serve",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
+  },
+  "notes": ["Solo Chromium por defecto; requiere navegador descargado."]
+}

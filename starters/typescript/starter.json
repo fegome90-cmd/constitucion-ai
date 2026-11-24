@@ -1,0 +1,15 @@
+{
+  "id": "typescript",
+  "runtime": "Node.js >=22.12 + pnpm 12",
+  "commands": {
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+    "format": "pnpm exec biome format --write .",
+    "lint": "pnpm exec biome check .",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "test": "pnpm test",
+    "build": "pnpm build",
+    "dev": "pnpm dev",
+    "check": "pnpm run check"
+  },
+  "notes": ["pnpm-lock.yaml se genera con pnpm install; guardarlo."]
+}

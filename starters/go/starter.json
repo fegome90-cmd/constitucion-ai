@@ -1,0 +1,15 @@
+{
+  "id": "go",
+  "runtime": "Go >=1.23",
+  "commands": {
+    "setup": "go mod download",
+    "format": "go fmt ./...",
+    "lint": "go vet ./...",
+    "typecheck": null,
+    "test": "go test ./...",
+    "build": "go build ./...",
+    "dev": "go run ./cmd/starter",
+    "check": "go vet ./... && go test ./... && go build ./..."
+  },
+  "notes": []
+}

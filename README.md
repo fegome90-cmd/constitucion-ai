@@ -2,8 +2,6 @@
 
 [![Version](https://img.shields.io/badge/version-v1.1-blue.svg)](./constitution/AGENTIC-CONSTITUTION.md)
 
-
-
 > Marco fundacional para gobernanza de sistemas de IA en desarrollo de software.
 
 ## ¿Qué es esto?
@@ -47,7 +45,7 @@ Esta constitución resuelve eso con **leyes vinculantes**, no sugerencias.
 
 ## Instalación
 
-Este repositorio contiene exclusivamente documentación Markdown — no requiere instalación de dependencias.
+La constitución puede leerse sin instalar dependencias. La rama de integración también contiene un linter Python, config kits y diez starters ejecutables; esas herramientas sí requieren sus runtimes y dependencias.
 
 ```bash
 # Clonar el repositorio
@@ -55,7 +53,7 @@ git clone https://github.com/fegome90-cmd/constitucion-ai.git
 cd constitucion-ai
 ```
 
-Con eso ya tienes acceso a `constitution/AGENTIC-CONSTITUTION.md` y el resto de los documentos.
+Para ejecutar el linter y sus pruebas: `uv sync --frozen` y `uv run --frozen pytest tests/ -q`. Para listar los starters: `python3 scripts/scaffold.py --list`. Para **exportar un proyecto utilizable**: `python3 scripts/scaffold.py --template python --name mi-proyecto --output ..`. La auditoría `python3 tooling/audit.py --run-gates` crea proyectos temporales y ejecuta comandos del catálogo; úsala solo con checkouts confiables.
 
 ## Uso Rápido
 
@@ -79,18 +77,85 @@ Copiar `constitution/AGENTIC-CONSTITUTION.md` a tu proyecto.
 
 ```
 constitucion-ai/
-├── constitution/
-│   ├── AGENTIC-CONSTITUTION.md    # Constitución activa (v1.1)
-│   └── REVIEW-CHECKLIST.md        # Checklist de revisión
-├── docs/
-│   └── mandate-roles-and-jurisdiction.md
-├── archive/
-│   └── v0.7-AGENTIC-CONSTITUTION.md  # Versión archivada
-├── CLAUDE.md                      # Contexto para Claude Code
+├── constitution/                  # Normas constitucionales y checklist
+├── docs/                          # ADR, roles, planes y guías
+├── skills/agentic-constitution-anchor/  # Anclaje constitucional
+├── scripts/                       # Linter, aplicador y comprobación de versiones
+├── tooling/                       # Generación y auditoría de starters
+├── templates/                     # Config kits canónicos
+├── starters/                      # Diez proyectos ejecutables
+├── tests/                         # Regresiones y pruebas de integración
+├── evidencia/                      # Informes de ejecución
+├── catalog.json                   # Contrato de los diez entornos
+├── CLAUDE.md                      # Guía de agentes
 └── README.md                      # Este archivo
 ```
 
 ## Desarrollo
+
+### Constitution Linter
+
+Herramienta de linting para detectar violaciones de neutralidad de modelo (Ley VII, Artículo 2).
+
+#### Instalación
+
+```bash
+# Instalar como herramienta UV
+uv tool install .
+
+# O usar directamente con uv run
+uv run constitution-linter --help
+```
+
+#### Uso
+
+```bash
+# Escanear archivo o directorio
+uv run constitution-linter scan .
+
+# Ver plan de correcciones
+uv run constitution-linter plan .
+
+# Aplicar correcciones automáticas
+uv run constitution-linter fix .
+
+# Ejecutar todo (scan + plan + fix)
+uv run constitution-linter run-all .
+
+# Crear un commit de los archivos ya versionados que hayan sido corregidos
+uv run constitution-linter run-all . --commit
+```
+
+`--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Rechaza cambios previamente preparados en las rutas que intenta corregir, destinos en conflicto y renombres de directorios que contengan reglas `.gitignore` internas. Para esos casos, ejecuta `fix` sin `--commit`, revisa el resultado y confirma manualmente; el commit automático no debe absorber trabajo ajeno. La combinación `run-all --interactive --commit` está prohibida: realiza las correcciones interactivas y el commit en pasos separados.
+
+Las correcciones marcadas como pendientes de revisión no se aplican en modo automático.
+Usa `fix --interactive` para aceptar o rechazar cada corrección de contenido y cada renombre.
+En modo interactivo, un dry run muestra las correcciones candidatas sin aplicarlas.
+
+El linter usa mapas de líneas de CommonMark para proteger los bloques de código Markdown, incluso los anidados en listas y citas. Los archivos de código fuente se escanean sin aplicar la gramática Markdown. `TXT-001` conserva las referencias al componente canónico `CLAUDE.md` delimitadas como rutas o texto, incluidos delimitadores tipográficos, marcas de énfasis emparejadas, fragmentos y consultas de enlace, y referencias numéricas completas de línea; no exime nombres compuestos ni sufijos de respaldo.
+
+#### Códigos de Salida
+
+| Código | Descripción |
+|--------|-------------|
+| 0 | Sin violaciones en `scan`, o ejecución correcta de `plan`, `fix` y `run-all` |
+| 1 | Violaciones encontradas |
+| 2 | Dry run con violaciones |
+| 3 | Error de validación |
+| 4 | Error de ejecución |
+
+#### Patrones Detectados
+
+| Categoría | Regla | Descripción |
+|-----------|-------|-------------|
+| Directorios | DIR-001 | `.claude/` → `.ai/` |
+| Directorios | DIR-002 | `.cursor/` → `.ai/` |
+| Archivos | FILE-001 | `.cursorrules` → `.airules` |
+| Archivos | FILE-002 | `.cursorignore` → `.aiignore` |
+| Texto | TXT-001 | "Claude" → "AI" |
+| Texto | TXT-002 | "cursor rules" → "AI rules" |
+
+> **Nota:** Los patrones están definidos en `scripts/constitution_linter/patterns.py`. Para personalizar, modificar ese archivo o usar `load_patterns_from_yaml()` con un archivo YAML personalizado.
 
 ### Linting de Documentación
 

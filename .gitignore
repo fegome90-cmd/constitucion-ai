@@ -51,3 +51,15 @@ _ctx/
 
 # Review summaries output
 docs/reviews/
+
+# Claude Code local config
+.claude/
+
+# Temporary exploration workspace
+explore/
+
+# Starter dependencies and build artifacts
+node_modules/
+target/
+playwright-report/
+test-results/

@@ -1,0 +1,17 @@
+{
+  "id": "puppeteer",
+  "runtime": "Node.js >=22.12 + pnpm 12 + Chrome",
+  "commands": {
+    "setup": "pnpm install --frozen-lockfile --ignore-scripts && pnpm exec puppeteer browsers install chrome",
+    "format": "pnpm exec biome format --write .",
+    "lint": "pnpm exec biome check .",
+    "typecheck": "pnpm exec tsc --noEmit",
+    "test": "pnpm test",
+    "build": "pnpm build",
+    "dev": "pnpm dev",
+    "check": "pnpm run check"
+  },
+  "notes": [
+    "Puppeteer no trae test runner dedicado; node:test verifica solo utilidades sin navegador."
+  ]
+}
