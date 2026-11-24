@@ -129,6 +129,32 @@ class ConstitutionFixer:
             else:
                 needs_review.append(v)
 
+        # A safe replacement must not erase a different, overlapping human
+        # decision. Protect the original review spans before selecting any
+        # automatic edits; non-overlapping fixes and path-only findings remain
+        # independent.
+        review_spans: dict[tuple[str, int], list[tuple[int, int]]] = {}
+        for v in needs_review:
+            if v.line is not None and v.column is not None:
+                review_spans.setdefault((v.file_path, v.line), []).append(
+                    (v.column, v.column + len(v.match))
+                )
+
+        independent_fixes: list[Violation] = []
+        for v in safe_fixes:
+            if (
+                v.line is not None
+                and v.column is not None
+                and any(
+                    v.column < end and start < v.column + len(v.match)
+                    for start, end in review_spans.get((v.file_path, v.line), [])
+                )
+            ):
+                needs_review.append(v)
+            else:
+                independent_fixes.append(v)
+        safe_fixes = independent_fixes
+
         return FixPlan(
             violations=tuple(safe_fixes + needs_review),
             backup_path=None,  # Set when backup is created

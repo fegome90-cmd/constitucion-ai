@@ -1683,3 +1683,37 @@ def test_only_exact_canonical_filename_is_exempt(tmp_path: Path) -> None:
         "MY-AI.md.bak",
         "AI.md.bak",
     ]
+
+
+def test_review_required_span_protects_overlapping_safe_fix(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text("Example: Claude rule" + chr(10) + "Claude outside." + chr(10))
+    fixer = ConstitutionFixer(tmp_path)
+    scan = ConstitutionScanner().scan_path(target)
+    plan = fixer.create_plan(scan)
+    assert plan.needs_review >= 2
+    assert "+Example:" not in fixer.generate_diff(plan)
+    result = fixer.apply_plan(plan, create_backup=False)
+    assert result.success, result.error_message
+    assert target.read_text() == ("Example: Claude rule" + chr(10) + "AI outside." + chr(10))
+    assert any(
+        v.pattern.rule_id == "TXT-003"
+        for v in ConstitutionScanner().scan_path(target).all_violations
+    )
+
+
+def test_autocommit_preserves_review_span_in_same_file(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.invalid")
+    _git(tmp_path, "config", "user.name", "Test Runner")
+    target = tmp_path / "note.md"
+    target.write_text("Example: Claude rule" + chr(10) + "Claude outside." + chr(10))
+    _git(tmp_path, "add", "--", "note.md")
+    _git(tmp_path, "commit", "-qm", "baseline")
+
+    assert main(["run-all", str(tmp_path), "--commit"]) == 0
+    assert (
+        _git(tmp_path, "show", "HEAD:note.md") == "Example: Claude rule" + chr(10) + "AI outside."
+    )
+    assert _git(tmp_path, "status", "--porcelain") == ""
+    assert main(["scan", str(target), "--ci"]) == 1
