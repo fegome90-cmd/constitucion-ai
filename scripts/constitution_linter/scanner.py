@@ -305,7 +305,13 @@ class ConstitutionScanner:
         lines = content.split("\n")
 
         # LOG-001: Use robust code block detection
-        code_block_ranges = self._find_code_block_ranges(lines)
+        # Fence syntax belongs to Markdown and Markdown-like rule documents,
+        # not arbitrary source code (e.g. Python's repeated bitwise NOT).
+        is_markup = file_path.suffix.lower() == ".md" or file_path.name.lower() in {
+            ".airules",
+            ".cursorrules",
+        }
+        code_block_ranges = self._find_code_block_ranges(lines) if is_markup else []
 
         for i, line in enumerate(lines, start=1):
             # LOG-001: Skip lines inside code blocks
@@ -345,11 +351,13 @@ class ConstitutionScanner:
         block_start = -1
 
         for i, line in enumerate(lines):
-            match = re.match(r"^(`{3,}|~{3,})(.*)$", line.strip())
+            match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
             if match is None:
                 continue
             marker, suffix = match.groups()
             if fence is None:
+                if marker[0] == "`" and "`" in suffix:
+                    continue
                 fence = marker
                 block_start = i
             elif marker[0] == fence[0] and len(marker) >= len(fence) and not suffix.strip():

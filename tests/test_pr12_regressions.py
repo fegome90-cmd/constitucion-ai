@@ -1632,3 +1632,54 @@ def test_fix_preserves_canonical_governance_filename(tmp_path: Path) -> None:
     assert target.read_text() == (
         "Map authorities in CLAUDE.md or GOVERNANCE.md." + chr(10) + "AI outside." + chr(10)
     )
+
+
+def test_fence_syntax_does_not_hide_source_code_violations(tmp_path: Path) -> None:
+    target = tmp_path / "code.py"
+    target.write_text("mask = 0" + chr(10) + "~~~mask" + chr(10) + 'print("Claude")' + chr(10))
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text().endswith('print("AI")' + chr(10))
+
+
+def test_indented_tilde_line_does_not_open_top_level_fence(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text(
+        "    ~~~"
+        + chr(10) * 2
+        + "Claude outside."
+        + chr(10)
+        + chr(10)
+        + chr(96) * 3
+        + "text"
+        + chr(10)
+        + "~~~"
+        + chr(10)
+        + "Claude inside."
+        + chr(10)
+        + chr(96) * 3
+        + chr(10)
+    )
+    assert main(["fix", str(target)]) == 0
+    assert "AI outside." in target.read_text()
+    assert "Claude inside." in target.read_text()
+
+
+def test_only_exact_canonical_filename_is_exempt(tmp_path: Path) -> None:
+    target = tmp_path / "note.md"
+    target.write_text(
+        "CLAUDE.md."
+        + chr(10)
+        + "docs/CLAUDE.md"
+        + chr(10)
+        + "MY-CLAUDE.md.bak"
+        + chr(10)
+        + "CLAUDE.md.bak"
+        + chr(10)
+    )
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text().splitlines() == [
+        "CLAUDE.md.",
+        "docs/CLAUDE.md",
+        "MY-AI.md.bak",
+        "AI.md.bak",
+    ]

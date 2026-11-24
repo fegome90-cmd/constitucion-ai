@@ -91,7 +91,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 
 ### Configuración
 
-En un sistema que implemente la Ley XII, los roles y el mapeo de superficies deben documentarse en `_ctx/policy/roles.yaml` (artículos 2 y 6). Aquí solo se documenta el contrato conceptual; este repositorio no implementa el motor de autorización.
+En un sistema que adopte la Ley XII, los roles y el mapeo de superficies deben documentarse en `_ctx/policy/roles.yaml` (artículos 2 y 6). Aquí solo se documenta el contrato conceptual; este repositorio no implementa el motor de autorización.
 
 ### Integración con Ley VIII
 
