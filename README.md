@@ -132,7 +132,7 @@ Las correcciones marcadas como pendientes de revisión no se aplican en modo aut
 Usa `fix --interactive` para aceptar o rechazar cada corrección de contenido y cada renombre.
 En modo interactivo, un dry run muestra las correcciones candidatas sin aplicarlas.
 
-El linter utiliza mapas de líneas de CommonMark para proteger los bloques de código Markdown, incluso los anidados en listas y citas. Los archivos de código fuente se escanean sin aplicar la gramática Markdown. `TXT-001` conserva las referencias al componente canónico `CLAUDE.md` delimitadas como rutas o texto, incluidos fragmentos de enlace y referencias numéricas de línea; no exime nombres compuestos ni sufijos de respaldo.
+El linter usa mapas de líneas de CommonMark para proteger los bloques de código Markdown, incluso los anidados en listas y citas. Los archivos de código fuente se escanean sin aplicar la gramática Markdown. `TXT-001` conserva las referencias al componente canónico `CLAUDE.md` delimitadas como rutas o texto, incluidos fragmentos de enlace y referencias numéricas de línea; no exime nombres compuestos ni sufijos de respaldo.
 
 #### Códigos de Salida
 
