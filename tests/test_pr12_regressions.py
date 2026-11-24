@@ -1957,3 +1957,54 @@ def test_canonical_reference_directional_boundaries(tmp_path: Path) -> None:
         "**docs/CLAUDE.md**\n"
         "CLAUDE.md.\n"
     )
+
+
+def test_modified_builtin_rule_does_not_inherit_reference_exemption(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from constitution_linter import get_default_patterns
+
+    builtin = next(p for p in get_default_patterns() if p.rule_id == "TXT-001")
+    for derived, original, expected in [
+        (
+            replace(builtin, pattern="Gemini", suggestion="VendorNeutral"),
+            "Gemini.md\nGemini outside.\n",
+            "VendorNeutral.md\nVendorNeutral outside.\n",
+        ),
+        (
+            replace(builtin, suggestion="VendorNeutral"),
+            "Claude.md\nClaude outside.\n",
+            "VendorNeutral.md\nVendorNeutral outside.\n",
+        ),
+        (
+            replace(builtin, case_sensitive=True),
+            "Claude.md\nCLAUDE.md\nClaude outside.\n",
+            "AI.md\nCLAUDE.md\nAI outside.\n",
+        ),
+    ]:
+        target = tmp_path / "note.md"
+        target.write_text(original, encoding="utf-8")
+        scanner = ConstitutionScanner(patterns=[derived])
+        fixer = ConstitutionFixer(tmp_path)
+        result = fixer.apply_plan(fixer.create_plan(scanner.scan_path(target)), create_backup=False)
+        assert result.success
+        assert target.read_text(encoding="utf-8") == expected
+
+
+def test_canonical_reference_in_compact_markdown_blockquote(tmp_path: Path) -> None:
+    from markdown_it import MarkdownIt
+
+    parser = MarkdownIt("commonmark")
+    assert parser.render(">CLAUDE.md") == parser.render("> CLAUDE.md")
+    target = tmp_path / "note.md"
+    original = (
+        ">CLAUDE.md\n> CLAUDE.md\n>>CLAUDE.md\n>**CLAUDE.md**\n"
+        "- >CLAUDE.md\n"
+        "docs/name>CLAUDE.md\nClaude outside.\n"
+    )
+    target.write_text(original, encoding="utf-8")
+    assert main(["fix", str(target)]) == 0
+    expected = original.replace("docs/name>CLAUDE.md", "docs/name>AI.md").replace(
+        "Claude outside.", "AI outside."
+    )
+    assert target.read_text(encoding="utf-8") == expected

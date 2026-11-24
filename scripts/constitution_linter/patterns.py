@@ -269,6 +269,15 @@ def load_patterns_from_yaml(config_path: Path) -> list[Pattern]:
     return [_parse_pattern(p) for p in raw["patterns"]]
 
 
+# Snapshot the exact built-in rule once. A derived rule can retain the origin
+# flag via dataclasses.replace, but any customized policy must be matched as
+# its own rule, not as a governance-reference exemption.
+_CANONICAL_REFERENCE_RULE = _parse_pattern(
+    next(p for p in TEXT_REFERENCE_PATTERNS if p["rule_id"] == "TXT-001"),
+    builtin_canonical_reference=True,
+)
+
+
 def get_default_patterns() -> list[Pattern]:
     """Get the default pattern set for model neutrality."""
     all_patterns = DIRECTORY_ALIAS_PATTERNS + FILE_ALIAS_PATTERNS + TEXT_REFERENCE_PATTERNS
@@ -314,11 +323,22 @@ _REFERENCE_WRAPPER = re.compile(r"\*{1,3}|_{1,3}|~{2}")
 _LINE_REFERENCE = re.compile(r":\d+(?::\d+)?")
 _QUERY_REFERENCE = re.compile(r"\?[A-Za-z0-9_.~-]+=")
 _SENTENCE_PUNCTUATION = ".,;:!?"
+_BLOCKQUOTE_PREFIX = re.compile(r"[ 	]*(?:>[ 	]*|(?:[-+*]|[0-9]{1,9}[.)])[ 	]+)*")
 
 
 def _is_opening_text_delimiter(char: str) -> bool:
     return (
         char.isspace() or char in {"'", '"', "`", "<"} or unicodedata.category(char) in {"Ps", "Pi"}
+    )
+
+
+def _is_text_start(line: str, index: int) -> bool:
+    """A quote marker opens text only in a Markdown container prefix."""
+    if index == 0:
+        return True
+    char = line[index - 1]
+    return _is_opening_text_delimiter(char) or (
+        char == ">" and _BLOCKQUOTE_PREFIX.fullmatch(line, 0, index) is not None
     )
 
 
@@ -349,7 +369,7 @@ def _reference_end(line: str, index: int) -> bool:
 
 
 def _delimited_reference(line: str, start: int, end: int) -> bool:
-    left = start == 0 or _is_opening_text_delimiter(line[start - 1]) or line[start - 1] in "/\\"
+    left = _is_text_start(line, start) or line[start - 1] in "/\\"
     return left and _reference_end(line, end)
 
 
@@ -384,11 +404,7 @@ def _wrapped_reference(line: str, start: int, end: int) -> bool:
     for marker in _REFERENCE_WRAPPER.finditer(line):
         left, right = marker.span()
         opens = (
-            (
-                left == 0
-                or _is_opening_text_delimiter(line[left - 1])
-                or (stack and stack[-1].end() == left)
-            )
+            (_is_text_start(line, left) or (stack and stack[-1].end() == left))
             and right < len(line)
             and not line[right].isspace()
         )
@@ -416,7 +432,7 @@ def is_protected_content_match(pattern: Pattern, match: re.Match[str]) -> bool:
     Scanner and fixer use this same predicate, including stale-plan checks.
     The grammar is for text references, not arbitrary filesystem name syntax.
     """
-    if not pattern.builtin_canonical_reference:
+    if pattern != _CANONICAL_REFERENCE_RULE:
         return False
     line = match.string
     start = match.start()
