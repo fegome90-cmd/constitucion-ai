@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import secrets
-import shutil
 import tarfile
 import tempfile
 from datetime import datetime, timedelta
@@ -59,9 +59,9 @@ class ConstitutionFixer:
         Args:
             base_path: Base directory for backups and fixes
         """
-        self.base_path = base_path.resolve()
+        resolved = base_path.resolve()
+        self.base_path = resolved.parent if resolved.is_file() else resolved
         self.backup_dir = self.base_path / BACKUP_DIR
-        self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_path_in_base(self, path: Path) -> None:
         """
@@ -101,6 +101,14 @@ class ConstitutionFixer:
         needs_review: list[Violation] = []
 
         for v in violations:
+            # A path-only match without a directory/file alias requires human
+            # interpretation; it is not a content span that can be autofixed.
+            if v.line is None and v.violation_type not in (
+                ViolationType.DIRECTORY_ALIAS,
+                ViolationType.FILE_ALIAS,
+            ):
+                needs_review.append(v)
+                continue
             # Directory aliases are always safe (file system level)
             if (
                 v.violation_type == ViolationType.DIRECTORY_ALIAS
@@ -170,6 +178,7 @@ class ConstitutionFixer:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         random_suffix = secrets.token_hex(4)
         backup_path = self.backup_dir / f"backup_{timestamp}_{random_suffix}.tar.gz"
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
 
         with tarfile.open(backup_path, "w:gz") as tar:
             for file_path in files:
@@ -217,6 +226,46 @@ class ConstitutionFixer:
 
         return removed
 
+    def planned_path_renames(self, plan: FixPlan) -> tuple[tuple[Path, Path], ...]:
+        """Canonical lexical path moves for apply and pre-commit validation."""
+        renames: dict[Path, Path] = {}
+        reverse: dict[Path, Path] = {}
+        for violation in plan.violations:
+            if violation.violation_type == ViolationType.DIRECTORY_ALIAS:
+                if violation.column is None:
+                    raise ValueError("Directory violation has no matched path offset")
+                match_end = violation.column + len(violation.match)
+                source = Path(violation.file_path[:match_end].removesuffix(os.sep)).absolute()
+            elif violation.violation_type == ViolationType.FILE_ALIAS:
+                source = Path(violation.file_path).absolute()
+            else:
+                continue
+            destination = source.with_name(violation.suggestion.rstrip("/\\"))
+            # Do not modify ancestors of a scoped file/subtree.
+            if not source.is_relative_to(self.base_path) or not destination.is_relative_to(
+                self.base_path
+            ):
+                continue
+            if source in renames and renames[source] != destination:
+                raise ValueError(f"Conflicting rename for {source}")
+            prior = reverse.get(destination)
+            if prior is not None and prior != source:
+                raise ValueError(
+                    f"Conflicting rename destination {destination}: {prior} and {source}"
+                )
+            renames[source] = destination
+            reverse[destination] = source
+        # Shared with both dry-run previews and actual application: never
+        # advertise a move that would overwrite an existing path.
+        for source, destination in renames.items():
+            self._validate_path_in_base(source)
+            self._validate_path_in_base(destination)
+            if not source.exists() or source.is_symlink():
+                raise FileNotFoundError(f"Rename source missing or symlink: {source}")
+            if destination.exists() or destination.is_symlink():
+                raise FileExistsError(f"Rename destination already exists: {destination}")
+        return tuple(sorted(renames.items(), key=lambda item: len(item[0].parts), reverse=True))
+
     def apply_plan(
         self,
         plan: FixPlan,
@@ -224,125 +273,130 @@ class ConstitutionFixer:
         create_backup: bool = True,
         interactive: bool = False,
     ) -> FixResult:
-        """
-        Apply a fix plan to files.
-
-        Args:
-            plan: Fix plan to apply
-            dry_run: If True, only show what would be changed
-            create_backup: If True, create backup before modifying
-            interactive: If True, prompt for each fix
-
-        Returns:
-            FixResult with applied changes
-        """
+        """Apply content edits at scanned positions, then rename paths once."""
         if not plan.violations:
-            return FixResult(
-                plan=plan,
-                files_modified=(),
-                success=True,
-                error_message=None,
-            )
+            return FixResult(plan=plan, files_modified=(), success=True, error_message=None)
 
-        # Group violations by file
-        by_file: dict[str, list[Violation]] = {}
-        for v in plan.violations:
-            if v.file_path not in by_file:
-                by_file[v.file_path] = []
-            by_file[v.file_path].append(v)
-
-        files_to_modify = [Path(fp) for fp in by_file]
-
-        # LOG-002: Create backup and update plan with backup path
+        content_edits: dict[Path, list[Violation]] = {}
+        modified: list[str] = []
         updated_plan = plan
-        if create_backup and not dry_run:
-            backup_path = self.create_backup(files_to_modify)
-            if backup_path:
-                # Create updated plan with backup path (FixPlan is frozen, so create new)
-                updated_plan = FixPlan(
-                    violations=plan.violations,
-                    backup_path=str(backup_path),
-                    created_at=plan.created_at,
-                    total_fixes=plan.total_fixes,
-                    safe_fixes=plan.safe_fixes,
-                    needs_review=plan.needs_review,
-                )
 
-        modified_files: list[str] = []
-
-        for file_path_str, violations in by_file.items():
-            file_path = Path(file_path_str)
-
-            if not file_path.exists():
-                continue
-
-            try:
-                if violations[0].violation_type in (
-                    ViolationType.DIRECTORY_ALIAS,
-                    ViolationType.FILE_ALIAS,
+        try:
+            ordered_renames = self.planned_path_renames(plan)
+            renames = dict(ordered_renames)
+            for violation in plan.violations:
+                if (
+                    violation.violation_type
+                    in (
+                        ViolationType.DIRECTORY_ALIAS,
+                        ViolationType.FILE_ALIAS,
+                    )
+                    or violation.line is None
                 ):
-                    # File/directory rename
-                    if self._apply_path_fix(file_path, violations, dry_run):
-                        modified_files.append(file_path_str)
-                else:
-                    # Content fix
-                    if self._apply_content_fix(file_path, violations, dry_run, interactive):
-                        modified_files.append(file_path_str)
-            except PathSecurityError as e:
-                return FixResult(
-                    plan=updated_plan,
-                    files_modified=tuple(modified_files),
-                    success=False,
-                    error_message=f"Security error: {e}",
-                )
-            except Exception as e:
-                return FixResult(
-                    plan=updated_plan,
-                    files_modified=tuple(modified_files),
-                    success=False,
-                    error_message=f"Error fixing {file_path}: {e}",
-                )
+                    continue
+                content_edits.setdefault(Path(violation.file_path).absolute(), []).append(violation)
+
+            # Validate all targets before touching any file.
+            for source in content_edits:
+                self._validate_path_in_base(source)
+            for source, destination in renames.items():
+                self._validate_path_in_base(source)
+                self._validate_path_in_base(destination)
+                if not source.exists() or source.is_symlink():
+                    raise FileNotFoundError(f"Rename source missing or symlink: {source}")
+                if destination.exists() or destination.is_symlink():
+                    raise FileExistsError(f"Rename destination already exists: {destination}")
+
+            # Validate every custom replacement template before touching any file,
+            # so an invalid backreference in a later file cannot leave partial edits.
+            for content_path, matches in content_edits.items():
+                scanned_lines = content_path.read_text(encoding="utf-8").split("\n")
+                for violation in matches:
+                    if violation.line is None or violation.column is None:
+                        raise ValueError(f"Content violation missing location: {violation}")
+                    position = violation.column - 1
+                    if violation.line > len(scanned_lines):
+                        raise ValueError(f"Stale scan at {content_path}:{violation.line}")
+                    scanned_line = scanned_lines[violation.line - 1]
+                    match = compile_pattern(violation.pattern).match(scanned_line, position)
+                    if (
+                        match is None
+                        or match.end() != position + len(violation.match)
+                        or scanned_line[position : match.end()] != violation.match
+                    ):
+                        raise ValueError(f"Stale scan at {content_path}:{violation.line}")
+                    try:
+                        match.expand(violation.suggestion)
+                    except (IndexError, re.error) as exc:
+                        raise ValueError(
+                            f"Invalid replacement for {violation.pattern.rule_id}"
+                        ) from exc
+
+            if create_backup and not dry_run:
+                sources = list(dict.fromkeys([*content_edits, *renames]))
+                backup_path = self.create_backup(sources)
+                if backup_path:
+                    updated_plan = FixPlan(
+                        violations=plan.violations,
+                        backup_path=str(backup_path),
+                        created_at=plan.created_at,
+                        total_fixes=plan.total_fixes,
+                        safe_fixes=plan.safe_fixes,
+                        needs_review=plan.needs_review,
+                    )
+
+            # Edits must use original paths; the path aliases are renamed afterwards.
+            original_sources = set(content_edits) | set(renames)
+            for source, violations in content_edits.items():
+                if self._apply_content_fix(source, violations, dry_run, interactive):
+                    modified.append(str(source))
+
+            # Deepest first, to support nested aliases without invalidating child paths.
+            for source, destination in ordered_renames:
+                if self._apply_path_fix(source, destination, dry_run):
+                    modified.extend((str(source), str(destination)))
+
+            # Commit only original sources and final destinations; nested renames
+            # can create transient paths that no longer exist after their parent moves.
+            originally_modified = {
+                Path(path) for path in modified if Path(path) in original_sources
+            }
+            final_modified = {Path(path) for path in modified}
+            for source, destination in ordered_renames:
+                final_modified = {
+                    destination / path.relative_to(source)
+                    if path == source or path.is_relative_to(source)
+                    else path
+                    for path in final_modified
+                }
+            final_modified = {path for path in final_modified if dry_run or path.exists()}
+            modified = [str(path) for path in sorted(originally_modified | final_modified)]
+        except (OSError, ValueError, PathSecurityError) as exc:
+            return FixResult(
+                plan=updated_plan,
+                files_modified=tuple(dict.fromkeys(modified)),
+                success=False,
+                error_message=str(exc),
+            )
 
         return FixResult(
             plan=updated_plan,
-            files_modified=tuple(modified_files),
+            files_modified=tuple(dict.fromkeys(modified)),
             success=True,
             error_message=None,
+            path_renames=tuple((str(src), str(dst)) for src, dst in ordered_renames),
         )
 
-    def _apply_path_fix(self, file_path: Path, violations: list[Violation], dry_run: bool) -> bool:
-        """
-        Apply path-based fix (rename file/directory).
-
-        SEG-002: Validates paths to prevent arbitrary file writes.
-        LOG-003: Returns True for successful dry run.
-        LOG-005: Checks for file collisions before rename.
-        """
-        if not violations:
-            return False
-
-        # Use first violation's suggestion
-        new_name = violations[0].suggestion
-        new_path = file_path.parent / new_name
-
-        # SEG-002: Validate both paths are within base directory
-        self._validate_path_in_base(file_path)
-        self._validate_path_in_base(new_path)
-
+    def _apply_path_fix(self, source: Path, destination: Path, dry_run: bool) -> bool:
+        """Rename one matched path component, refusing collisions."""
+        self._validate_path_in_base(source)
+        self._validate_path_in_base(destination)
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError(f"Rename destination already exists: {destination}")
         if dry_run:
-            print(f"Would rename: {file_path} -> {new_path}")
-            return True  # LOG-003: Return True for successful dry run
-
-        # LOG-005: Check for collision before rename
-        if new_path.exists():
-            logger.warning(
-                "Cannot rename %s to %s: destination already exists",
-                file_path,
-                new_path,
-            )
-            return False
-
-        file_path.rename(new_path)
+            print(f"Would rename: {source} -> {destination}")
+            return True
+        source.rename(destination)
         return True
 
     def _apply_content_fix(
@@ -352,127 +406,171 @@ class ConstitutionFixer:
         dry_run: bool,
         interactive: bool,
     ) -> bool:
-        """
-        Apply content-based fix (replace text in file).
-
-        SEG-006: Uses atomic write pattern (temp file + rename).
-        LOG-006: Checks file size before reading.
-        """
-        # SEG-002: Validate path is within base directory
+        """Replace only scanner-reported spans, preserving other text and file mode."""
         self._validate_path_in_base(file_path)
-
-        # LOG-006: Check file size before reading
-        try:
-            file_size = file_path.stat().st_size
-            if file_size > MAX_FILE_SIZE_BYTES:
-                logger.warning("Skipping large file (%d bytes): %s", file_size, file_path)
-                return False
-        except OSError as e:
-            logger.warning("Cannot stat file %s: %s", file_path, e)
+        if file_path.is_symlink():
+            raise PathSecurityError(f"Refusing to edit symlink: {file_path}")
+        if file_path.stat().st_size > MAX_FILE_SIZE_BYTES:
             return False
 
-        try:
-            content = file_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return False
+        # Preserve CRLF while matching the scanner's LF-only logical boundaries.
+        # splitlines() incorrectly splits within a scanned U+2028 line.
+        with file_path.open("r", encoding="utf-8", newline="") as stream:
+            raw_text = stream.read()
+        # Path.read_text in the scanner translates CR, LF and CRLF into LF.
+        # Keep the original line endings while calculating the same positions.
+        parts = re.split(r"(\r\n|\r|\n)", raw_text)
+        lines = [
+            parts[i] + (parts[i + 1] if i + 1 < len(parts) else "") for i in range(0, len(parts), 2)
+        ]
+        by_line: dict[int, list[Violation]] = {}
+        for violation in violations:
+            if violation.line is None or violation.column is None:
+                raise ValueError(f"Content violation missing location: {violation}")
+            by_line.setdefault(violation.line - 1, []).append(violation)
 
         modified = False
-
-        for v in violations:
-            compiled = compile_pattern(v.pattern)
-
-            if interactive:
-                print(f"\n{file_path}:{v.line}")
-                print(f"  Found: {v.match}")
-                print(f"  Replace with: {v.suggestion}")
-                response = input("Apply? [y/N] ")
-                if response.lower() != "y":
+        for line_index, matches in by_line.items():
+            if line_index >= len(lines):
+                raise ValueError(f"Stale scan: line {line_index + 1} no longer exists")
+            original_line = lines[line_index]
+            accepted: list[tuple[int, int, Violation]] = []
+            for violation in sorted(matches, key=lambda v: (v.column or 0, -len(v.match))):
+                assert violation.column is not None  # checked when grouping matches
+                start = violation.column - 1
+                end = start + len(violation.match)
+                if original_line[start:end] != violation.match:
+                    raise ValueError(f"Stale scan at {file_path}:{line_index + 1}")
+                if any(
+                    start < prior_end and end > prior_start
+                    for prior_start, prior_end, _ in accepted
+                ):
                     continue
+                accepted.append((start, end, violation))
 
-            content = compiled.sub(v.suggestion, content)
-            modified = True
-
-        if dry_run:
-            if modified:
-                print(f"Would modify: {file_path}")
-            return modified
-
-        if modified:
-            # SEG-006: Atomic write - write to temp file, then rename
-            try:
-                # Create temp file in same directory for atomic rename
-                fd, temp_path = tempfile.mkstemp(
-                    dir=file_path.parent,
-                    prefix=f".{file_path.name}.",
-                    suffix=".tmp",
-                )
+            new_line = original_line
+            for start, end, violation in sorted(accepted, key=lambda match: match[0], reverse=True):
+                if interactive:
+                    print(f"\n{file_path}:{line_index + 1}")
+                    print(f"  Found: {violation.match}")
+                    print(f"  Replace with: {violation.suggestion}")
+                    if input("Apply? [y/N] ").lower() != "y":
+                        continue
+                # The scanner matches the logical line without its CR/LF terminator.
+                logical_line = original_line
+                if logical_line.endswith("\r\n"):
+                    logical_line = logical_line[:-2]
+                elif logical_line.endswith(("\r", "\n")):
+                    logical_line = logical_line[:-1]
+                matched = compile_pattern(violation.pattern).match(logical_line, start)
+                if matched is None or matched.end() != end:
+                    raise ValueError(f"Stale regex match at {file_path}:{line_index + 1}")
                 try:
-                    with os.fdopen(fd, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    # Atomic rename
-                    shutil.move(temp_path, file_path)
-                except Exception:
-                    # Clean up temp file on error
-                    Path(temp_path).unlink(missing_ok=True)
-                    raise
-            except OSError as e:
-                logger.error("Failed to write file %s: %s", file_path, e)
-                return False
+                    replacement = matched.expand(violation.suggestion)
+                except (IndexError, re.error) as exc:
+                    raise ValueError(
+                        f"Invalid replacement for {violation.pattern.rule_id}"
+                    ) from exc
+                new_line = new_line[:start] + replacement + new_line[end:]
+            if new_line != original_line:
+                lines[line_index] = new_line
+                modified = True
+
+        if not modified:
+            return False
+        if dry_run:
+            print(f"Would modify: {file_path}")
             return True
 
-        return False
+        # Same-directory temporary write; preserve the exact Unix mode before atomic swap.
+        file_mode = file_path.stat().st_mode
+        fd, temp_path = tempfile.mkstemp(
+            dir=file_path.parent, prefix=f".{file_path.name}.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                stream.write("".join(lines))
+            os.chmod(temp_path, file_mode)
+            os.replace(temp_path, file_path)
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+        return True
 
     def generate_diff(self, plan: FixPlan) -> str:
-        """
-        Generate a unified diff preview of all changes.
-
-        Args:
-            plan: Fix plan to generate diff for
-
-        Returns:
-            Unified diff string
-        """
+        """Preview all reported path and content changes without modifying files."""
+        ordered_renames = self.planned_path_renames(plan)
         diff_lines: list[str] = []
+        # Show the real deepest-first filesystem operations in their apply order.
+        for source, destination in ordered_renames:
+            diff_lines.extend(
+                (
+                    f"--- {source}",
+                    f"+++ {destination}",
+                    "Path rename (file or directory will be moved)",
+                )
+            )
 
-        # Group violations by file
         by_file: dict[str, list[Violation]] = {}
-        for v in plan.violations:
-            if v.file_path not in by_file:
-                by_file[v.file_path] = []
-            by_file[v.file_path].append(v)
+        for violation in plan.violations:
+            by_file.setdefault(violation.file_path, []).append(violation)
 
-        for file_path_str, violations in sorted(by_file.items()):
-            file_path = Path(file_path_str)
+        for filename, violations in sorted(by_file.items()):
+            path = Path(filename).absolute()
+            content_fixes = [
+                v
+                for v in violations
+                if v.violation_type not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+            ]
+            if not content_fixes:
+                continue
+            try:
+                lines = path.read_text(encoding="utf-8").split("\n")
+            except (FileNotFoundError, UnicodeDecodeError):
+                continue
 
-            if violations[0].violation_type in (
-                ViolationType.DIRECTORY_ALIAS,
-                ViolationType.FILE_ALIAS,
-            ):
-                # Path rename diff
-                new_name = violations[0].suggestion
-                diff_lines.append(f"--- {file_path_str}")
-                diff_lines.append(f"+++ {file_path.parent / new_name}")
-                diff_lines.append("Path rename (file will be moved)")
-            else:
-                # Content diff
-                try:
-                    content = file_path.read_text(encoding="utf-8")
-                except (FileNotFoundError, UnicodeDecodeError):
+            by_line: dict[int, list[Violation]] = {}
+            for violation in content_fixes:
+                if violation.line is not None and violation.column is not None:
+                    by_line.setdefault(violation.line - 1, []).append(violation)
+
+            changes: list[tuple[int, str, str]] = []
+            for index, matches in sorted(by_line.items()):
+                if index >= len(lines):
                     continue
+                before = lines[index]
+                after = before
+                accepted: list[tuple[int, int, Violation]] = []
+                for violation in sorted(matches, key=lambda v: (v.column or 0, -len(v.match))):
+                    assert violation.column is not None
+                    begin = violation.column - 1
+                    end = begin + len(violation.match)
+                    if before[begin:end] != violation.match:
+                        continue
+                    if any(
+                        begin < prior_end and end > prior_begin
+                        for prior_begin, prior_end, _ in accepted
+                    ):
+                        continue
+                    accepted.append((begin, end, violation))
+                for begin, end, violation in sorted(
+                    accepted, key=lambda item: item[0], reverse=True
+                ):
+                    match = compile_pattern(violation.pattern).match(before, begin)
+                    if match is not None and match.end() == end:
+                        try:
+                            replacement = match.expand(violation.suggestion)
+                        except (IndexError, re.error) as exc:
+                            raise ValueError(
+                                f"Invalid replacement for {violation.pattern.rule_id}"
+                            ) from exc
+                        after = after[:begin] + replacement + after[end:]
+                if after != before:
+                    changes.append((index + 1, before, after))
 
-                lines = content.split("\n")
-                diff_lines.append(f"--- {file_path_str}")
-                diff_lines.append(f"+++ {file_path_str}")
-
-                for v in sorted(violations, key=lambda x: x.line or 0):
-                    if v.line and v.line <= len(lines):
-                        old_line = lines[v.line - 1]
-                        new_line = compile_pattern(v.pattern).sub(v.suggestion, old_line)
-                        if old_line != new_line:
-                            diff_lines.append(f"@@ -{v.line} +{v.line} @@")
-                            diff_lines.append(f"-{old_line}")
-                            diff_lines.append(f"+{new_line}")
-
+            if changes:
+                diff_lines.extend((f"--- {filename}", f"+++ {filename}"))
+                for index, before, after in changes:
+                    diff_lines.extend((f"@@ -{index} +{index} @@", f"-{before}", f"+{after}"))
         return "\n".join(diff_lines)
 
 

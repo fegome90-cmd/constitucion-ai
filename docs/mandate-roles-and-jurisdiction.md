@@ -1,6 +1,6 @@
 # Ley XII: Roles, Capacidades y Jurisdicción Operativa
 
-> Guía operativa complementaria a la [Constitución v1.0, Ley XII](../AGENTIC-CONSTITUTION-v1.0.md#ley-xii-roles-capacidades-y-jurisdicción-operativa)
+> Guía operativa complementaria a la [Constitución v1.1, Ley XII](../constitution/AGENTIC-CONSTITUTION.md#ley-xii-roles-capacidades-y-jurisdicción-operativa)
 
 ## Propósito
 
@@ -83,7 +83,7 @@ human-approver      approve         aprobar acción  WARN (checkpoint)
 | sensitive-operator | sensitive_op | database | REQUIRE_APPROVAL |
 | maintainer | sensitive_op | database | REQUIRE_APPROVAL |
 
-Ver `_ctx/policy/roles.yaml` para mapeo completo de 200+ superficies.
+`_ctx/policy/roles.yaml` es la ubicación propuesta para una integración futura; no existe un motor de autorización ejecutable ni un catálogo de 200+ superficies en este repositorio. Esta tabla es orientativa, no un control de acceso efectivo.
 
 ---
 
@@ -91,18 +91,18 @@ Ver `_ctx/policy/roles.yaml` para mapeo completo de 200+ superficies.
 
 ### Configuración
 
-Los roles se definen en: `_ctx/policy/roles.yaml`
+En un sistema que adopte esta guía, los roles deben definirse en una política explícita, por ejemplo `_ctx/policy/roles.yaml`. Aquí solo se documenta el contrato conceptual.
 
 ### Integración con Ley VIII
 
 - **Roles** → Definen QUIÉN puede iniciar acciones
 - **Ley VIII, Art. 14** → Define CUÁNDO requiere aprobación humana adicional
-- Ver [Ley VIII](../AGENTIC-CONSTITUTION-v1.0.md#ley-viii-seguridad-agéntica) para el régimen completo de aprobación humana
+- Ver [Ley VIII](../constitution/AGENTIC-CONSTITUTION.md#ley-viii-de-la-seguridad-agéntica) para el régimen completo de aprobación humana
 
 ---
 
 ## Referencias
 
-- [Constitución de Código Agéntico v1.0 - Ley XII](../AGENTIC-CONSTITUTION-v1.0.md#ley-xii-roles-capacidades-y-jurisdicción-operativa)
-- [Ley VIII, Art. 14 - Aprobación humana](../AGENTIC-CONSTITUTION-v1.0.md#artículo-14-aprobación-humana)
-- `_ctx/policy/roles.yaml` - Configuración de roles
+- [Constitución de Código Agéntico v1.1 - Ley XII](../constitution/AGENTIC-CONSTITUTION.md#ley-xii-roles-capacidades-y-jurisdicción-operativa)
+- [Ley VIII, Art. 14 - Aprobación humana](../constitution/AGENTIC-CONSTITUTION.md#artículo-14-aprobación-humana-para-acciones-sensibles)
+- `_ctx/policy/roles.yaml` - Ubicación sugerida; no implementada en este repositorio

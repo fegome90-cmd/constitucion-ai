@@ -7,6 +7,7 @@ Scans files and directories for model neutrality violations.
 from __future__ import annotations
 
 import logging
+import os
 from typing import TYPE_CHECKING, Final
 
 from .patterns import compile_pattern, get_default_patterns, get_violation_type
@@ -19,6 +20,7 @@ from .types import (
     ScanResult,
     Severity,
     Violation,
+    ViolationType,
 )
 
 if TYPE_CHECKING:
@@ -249,8 +251,36 @@ class ConstitutionScanner:
         violations: list[Violation] = []
         compiled = self._compiled[pattern]
 
-        # Match against full path
+        # Require a whole path component, never a suffix of an ordinary name.
+        violation_type = get_violation_type(pattern)
         for match in compiled.finditer(full_path):
+            # On POSIX a backslash is a filename character, not a separator.
+            # Use the native path separator for both sides of alias components.
+            if violation_type == ViolationType.DIRECTORY_ALIAS:
+                # On POSIX a matched literal backslash belongs to the directory
+                # name; it is not a separator for an alias like .claude.
+                if (
+                    os.sep != "\\"
+                    and pattern.rule_id in {"DIR-001", "DIR-002", "DIR-003", "DIR-004"}
+                    and match.group().endswith("\\")
+                ):
+                    continue
+                # A regex may consume the separator or stop just before it,
+                # as with a custom lookahead pattern.
+                after_match = match.end() < len(full_path) and full_path[match.end()] == os.sep
+                if not (match.group().endswith(os.sep) or after_match):
+                    continue
+            # A file alias must match the complete basename, not .cursorrules.local
+            # or a directory named .cursorrules.
+            if violation_type == ViolationType.FILE_ALIAS and match.end() != len(full_path):
+                continue
+            if (
+                violation_type in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+                and match.start() > 0
+                and full_path[match.start() - 1] != os.sep
+                and not match.group().startswith(os.sep)
+            ):
+                continue
             violations.append(
                 Violation(
                     file_path=full_path,

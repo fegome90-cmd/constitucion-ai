@@ -134,6 +134,7 @@ class FixResult:
     files_modified: tuple[str, ...]
     success: bool
     error_message: str | None = None
+    path_renames: tuple[tuple[str, str], ...] = ()
 
 
 __all__ = [

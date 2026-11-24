@@ -10,20 +10,23 @@ import argparse
 import functools
 import logging
 import re
-import subprocess
+import shutil
+import subprocess  # nosec B404 - controlled Git commands, no shell invocation
 import sys
+import tempfile
+from bisect import bisect_left
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypeVar, cast
 
 from .fixer import ConstitutionFixer, PathSecurityError
 from .reporter import Reporter
 from .scanner import ConstitutionScanner
-from .types import MAX_CONTEXT_LENGTH
+from .types import MAX_CONTEXT_LENGTH, ViolationType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .types import FixPlan, ScanResult
+    from .types import FixPlan, FixResult, ScanResult
 
 # =============================================================================
 # LOGGING SETUP
@@ -223,6 +226,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
 @handle_scan_errors
 def cmd_fix(args: argparse.Namespace) -> int:
     """Execute fix command (apply fixes)."""
+    if Path(args.path).is_symlink():
+        print(f"Refusing symlink input: {args.path}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
     path = validate_and_resolve_path(args.path)
     scanner = ConstitutionScanner()
     fixer = ConstitutionFixer(path)
@@ -240,7 +246,11 @@ def cmd_fix(args: argparse.Namespace) -> int:
     # Show diff preview
     if args.dry_run:
         print("=== DRY RUN - No changes will be made ===\n")
-        diff = fixer.generate_diff(plan)
+        try:
+            diff = fixer.generate_diff(plan)
+        except (ValueError, PathSecurityError, OSError) as exc:
+            print(f"Cannot preview changes: {exc}", file=sys.stderr)
+            return EXIT_EXECUTION_ERROR
         print(diff)
         # LOG-007: Exit code 2 is intentional for dry run with changes
         return EXIT_DRY_RUN
@@ -297,8 +307,8 @@ def _run_fix_step(
     plan: FixPlan,
     args: argparse.Namespace,
     reporter: Reporter,
-) -> int:
-    """Run fix step and return exit code."""
+) -> FixResult:
+    """Run fix step and return the paths actually changed."""
     print("\nStep 3: Applying fixes...")
     fix_result = fixer.apply_plan(
         plan,
@@ -308,48 +318,513 @@ def _run_fix_step(
     )
     print(reporter.report_fix(fix_result, format="text"))
 
-    if not fix_result.success:
-        return EXIT_EXECUTION_ERROR
-    return EXIT_SUCCESS
+    return fix_result
 
 
-def _run_commit_step(path: Path, plan: FixPlan) -> int:
-    """Run commit step and return exit code."""
+def _run_commit_step(
+    path: Path, plan: FixPlan, fix_result: FixResult, eligible_sources: frozenset[str]
+) -> int:
+    """Commit changes to existing tracked files, never unrelated local additions."""
+    if not fix_result.files_modified:
+        return EXIT_SUCCESS
+
+    commit_lines = ["fix(constitution): apply model neutrality fixes", ""]
+    for violation in plan.violations[:MAX_COMMIT_VIOLATIONS]:
+        line = f"- {violation.pattern.rule_id}: {violation.match} → {violation.suggestion}"
+        commit_lines.append(sanitize_commit_message(line))
+    commit_msg = "\n".join(commit_lines)
+
     print("\nStep 4: Creating git commit...")
-
-    # SEG-003: Build and sanitize commit message
-    commit_msg_lines = ["fix(constitution): apply model neutrality fixes", ""]
-    for v in plan.violations[:MAX_COMMIT_VIOLATIONS]:
-        line = f"- {v.pattern.rule_id}: {v.match} → {v.suggestion}"
-        commit_msg_lines.append(sanitize_commit_message(line))
-
-    commit_msg = "\n".join(commit_msg_lines)
-
     try:
-        subprocess.run(
-            ["git", "add", "-A"],
-            check=True,
-            cwd=path,
+        cwd = path if path.is_dir() else path.parent
+        git_executable = shutil.which("git")
+        if git_executable is None:
+            raise FileNotFoundError("Git executable not found")
+        root = Path(
+            subprocess.check_output(  # nosec B603 - controlled argv, no shell
+                [git_executable, "rev-parse", "--show-toplevel"], cwd=cwd, text=True
+            ).strip()
+        ).resolve()
+
+        # Only files in both HEAD and the index are eligible: staged removals
+        # remain removed, and index-only additions never join the auto-commit.
+        head_probe = subprocess.run(  # nosec B603 - fixed Git argv, no shell
+            [git_executable, "rev-parse", "--verify", "--quiet", "HEAD"],
+            cwd=root,
             capture_output=True,
             text=True,
+            check=False,
         )
-        subprocess.run(
-            ["git", "commit", "-m", commit_msg],
+        if head_probe.returncode == 0:
+            head_files = (
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
+                )
+                .decode("utf-8", errors="surrogateescape")
+                .split("\0")
+            )
+        else:
+            unborn = subprocess.run(  # nosec B603 - fixed Git argv
+                [git_executable, "symbolic-ref", "--quiet", "HEAD"],
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if unborn.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    head_probe.returncode,
+                    [git_executable, "rev-parse", "HEAD"],
+                    stderr=head_probe.stderr,
+                )
+            head_files = []
+
+        index_files = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv
+                [git_executable, "ls-files", "--cached", "-z"], cwd=root
+            )
+            .decode("utf-8", errors="surrogateescape")
+            .split("\0")
+        )
+        modified_paths = {Path(name).resolve() for name in fix_result.files_modified}
+        scanned_files = {Path(v.file_path).resolve() for v in plan.violations}
+        renames = [
+            (Path(src).resolve(), Path(dst).resolve()) for src, dst in fix_result.path_renames
+        ]
+        # Eligibility is determined by original sources only, never final destinations.
+        rename_sources = {source for source, _ in renames}
+        content_sources = {
+            Path(v.file_path).resolve()
+            for v in plan.violations
+            if v.violation_type not in (ViolationType.DIRECTORY_ALIAS, ViolationType.FILE_ALIAS)
+            and Path(v.file_path).resolve() in modified_paths
+        }
+
+        paths_to_commit: set[str] = set()
+        for name in head_files:
+            if not name or name not in index_files or name not in eligible_sources:
+                continue
+            original = root / name
+            if original not in content_sources and not any(
+                original == source or original.is_relative_to(source) for source in rename_sources
+            ):
+                continue
+
+            final = original
+            for source, destination in renames:
+                if final == source or final.is_relative_to(source):
+                    final = destination / final.relative_to(source)
+
+            # A previously deleted, unscanned descendant is outside this fix.
+            # Do not stage that pre-existing deletion or treat it as a rename failure.
+            if not final.is_file() and not final.is_symlink():
+                if not final.exists() and original not in scanned_files:
+                    continue
+                raise ValueError(f"Tracked fix target is not a file: {final}")
+            paths_to_commit.add(original.relative_to(root).as_posix())
+            paths_to_commit.add(final.relative_to(root).as_posix())
+
+        if not paths_to_commit:
+            print("No tracked fixes to commit; untracked files remain untracked.")
+            return EXIT_SUCCESS
+
+        # NUL-delimited literal leaf pathspecs avoid shell globbing, path
+        # ambiguity and OS argument-size limits on large directory renames.
+        pathspecs = b"".join(
+            f":(literal){name}".encode("utf-8", errors="surrogateescape") + b"\0"
+            for name in sorted(paths_to_commit)
+        )
+        pathspec_args = ["--pathspec-from-file=-", "--pathspec-file-nul"]
+        # Dry-run first: a rejected destination must not leave the index half staged.
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "add", "--dry-run", "-A", *pathspec_args],
+            input=pathspecs,
             check=True,
-            cwd=path,
+            cwd=root,
             capture_output=True,
-            text=True,
+        )
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "add", "-A", *pathspec_args],
+            input=pathspecs,
+            check=True,
+            cwd=root,
+            capture_output=True,
+        )
+        # No-op fix: Git has no diff for these paths once staged. Do not make
+        # an empty commit or treat this as a failed operation.
+        index_changed = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+                [git_executable, "diff", "--cached", "--name-only", "-z", "HEAD"], cwd=root
+            )
+            .decode("utf-8", "surrogateescape")
+            .split("\0")
+        )
+        if not (index_changed & paths_to_commit):
+            print("No tracked differences remain after fixing.")
+            return EXIT_SUCCESS
+
+        # --only excludes unrelated user changes already staged in the index.
+        subprocess.run(  # nosec B603 - fixed Git argv and literal stdin
+            [git_executable, "commit", "--only", "-m", commit_msg, *pathspec_args],
+            input=pathspecs,
+            check=True,
+            cwd=root,
+            capture_output=True,
         )
         print("✅ Commit created successfully")
         return EXIT_SUCCESS
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git commit failed: {e.stderr or e}", file=sys.stderr)
+    except (subprocess.CalledProcessError, OSError, ValueError) as exc:
+        print(f"❌ Git commit failed: {getattr(exc, 'stderr', None) or exc}", file=sys.stderr)
         return EXIT_EXECUTION_ERROR
+
+
+def _preflight_commit_destinations(
+    path: Path,
+    plan: FixPlan,
+    fixer: ConstitutionFixer,
+    eligible_sources: set[str],
+    interactive: bool = False,
+) -> int:
+    """Validate all tracked rename destinations before changing files or index.
+
+    One canonical rename sequence is shared with the fixer and commit step.
+    Only existing HEAD-and-index leaf sources are eligible for auto-commit.
+    """
+    git_executable = shutil.which("git")
+    if git_executable is None:
+        print("Git executable not found", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
+    cwd = path if path.is_dir() else path.parent
+    try:
+        root = Path(
+            subprocess.check_output(  # nosec B603 - fixed Git argv, no shell
+                [git_executable, "rev-parse", "--show-toplevel"], cwd=cwd, text=True
+            ).strip()
+        ).resolve()
+        head_probe = subprocess.run(  # nosec B603 - fixed Git argv
+            [git_executable, "rev-parse", "--verify", "--quiet", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        )
+        if head_probe.returncode == 0:
+            head_paths = set(
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=root
+                )
+                .decode("utf-8", "surrogateescape")
+                .split("\0")
+            )
+        else:
+            unborn = subprocess.run(  # nosec B603 - fixed Git argv
+                [git_executable, "symbolic-ref", "--quiet", "HEAD"],
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if unborn.returncode:
+                print("Unable to inspect Git HEAD", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+            head_paths = set()
+        # Git mode is authoritative. With core.symlinks=false, a 120000
+        # index entry can appear as an ordinary file in the worktree.
+        index_modes: dict[str, bytes] = {}
+        index_records = subprocess.check_output(  # nosec B603 - fixed Git argv
+            [git_executable, "ls-files", "--stage", "-z"], cwd=root
+        )
+        for record in index_records.split(b"\0"):
+            if not record:
+                continue
+            metadata, raw_name = record.split(b"\t", 1)
+            index_modes[raw_name.decode("utf-8", "surrogateescape")] = metadata.split(b" ", 1)[0]
+        index_paths = set(index_modes)
+        ordered_renames = fixer.planned_path_renames(plan)
+        content_sources = {
+            Path(v.file_path).absolute() for v in plan.violations if v.line is not None
+        }
+        # Freeze the only eligible *original* paths before any fixer mutation.
+        # A tracked-but-deleted file may later be occupied by an untracked
+        # nested rename; it must never become eligible retroactively.
+        for name in head_paths & index_paths:
+            if not name:
+                continue
+            original = root / name
+            affected_by_rename = any(
+                original == src or original.is_relative_to(src) for src, _ in ordered_renames
+            )
+            if original not in content_sources and not affected_by_rename:
+                continue
+            # The staging allowlist contains regular files only, but a
+            # directory rename moves *every* child. Validate tracked links
+            # and gitlinks too, before they can be relocated without staging.
+            if (
+                affected_by_rename
+                and (original.exists() or original.is_symlink())
+                and (
+                    index_modes[name] not in (b"100644", b"100755")
+                    or original.is_symlink()
+                    or not original.is_file()
+                )
+            ):
+                print(
+                    f"Refusing commit: non-regular tracked rename source: {name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            if original.is_file() and not original.is_symlink():
+                eligible_sources.add(name)
+        staged_paths = (
+            set(
+                subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "diff", "--cached", "--name-only", "-z", "HEAD"],
+                    cwd=root,
+                )
+                .decode("utf-8", "surrogateescape")
+                .split("\0")
+            )
+            if head_paths
+            else index_paths
+        )
+        # Never overwrite a staged change, even when the fix is a no-op.
+        for staged_name in staged_paths:
+            # git rm --cached leaves a local file deliberately untracked.
+            # Its contents may be fixed without reintroducing it into Git.
+            if staged_name not in index_paths:
+                continue
+            staged_path = root / staged_name
+            if staged_path in content_sources or any(
+                staged_path == src or staged_path.is_relative_to(src) for src, _ in ordered_renames
+            ):
+                print(
+                    f"Refusing commit: staged changes in fix source: {staged_name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+
+        # The plan can rewrite .gitattributes and change clean filters
+        # after preflight; the resulting commit cannot be validated against
+        # the original attribute rules. Require explicit manual staging.
+        attributes_edit = any(
+            v.line is not None and Path(v.file_path).name.casefold() == ".gitattributes"
+            for v in plan.violations
+        )
+        # Only pre-mutation eligible tracked sources can enter the commit.
+        # Deleted files and untracked-only corrections do not trigger this gate.
+        if attributes_edit and eligible_sources:
+            print(
+                "Refusing commit: plan edits .gitattributes",
+                file=sys.stderr,
+            )
+            return EXIT_EXECUTION_ERROR
+
+        # Ignore patterns edited by this same plan can alter path eligibility
+        # after a rename. Manual staging is required for this ambiguous case.
+        if ordered_renames and any(
+            v.line is not None and Path(v.file_path).name == ".gitignore" for v in plan.violations
+        ):
+            print(
+                "Refusing commit: plan edits .gitignore while renaming paths",
+                file=sys.stderr,
+            )
+            return EXIT_EXECUTION_ERROR
+
+        # A rename may otherwise commit unrelated unstaged edits from a
+        # tracked leaf. Leave preexisting deletions alone (they are absent).
+        unstaged_paths = set(
+            subprocess.check_output(  # nosec B603 - fixed Git argv
+                [git_executable, "diff", "--name-only", "-z"], cwd=root
+            )
+            .decode("utf-8", "surrogateescape")
+            .split("\0")
+        )
+        for name in unstaged_paths:
+            if name not in index_paths:
+                continue
+            leaf = root / name
+            if not leaf.exists() and not leaf.is_symlink():
+                continue
+            if any(leaf == src or leaf.is_relative_to(src) for src, _ in ordered_renames):
+                print(
+                    f"Refusing commit: unstaged edits in rename source: {name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            if leaf in content_sources and name in head_paths:
+                # The preflight cannot predict which fixes a user will decline.
+                if interactive:
+                    print(
+                        f"Refusing commit: interactive fixes on dirty source: {name}",
+                        file=sys.stderr,
+                    )
+                    return EXIT_EXECUTION_ERROR
+                # Matching content bytes alone is insufficient if a chmod
+                # would enter the commit. Preserve the index executable bit.
+                stage_data = subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "ls-files", "-s", "--", f":(literal){name}"],
+                    cwd=root,
+                )
+                index_mode = stage_data.split(b" ", 1)[0]
+                # Git's raw diff reports the *effective* mode after applying
+                # core.fileMode. Unix st_mode alone is not equivalent to Git:
+                # Git tracks owner execute and can ignore chmod by config.
+                raw_diff = subprocess.check_output(  # nosec B603 - fixed Git argv
+                    [git_executable, "diff", "--raw", "-z", "--", f":(literal){name}"],
+                    cwd=root,
+                )
+                header = raw_diff.split(b"\0", 1)[0].split()
+                effective_mode = header[1] if len(header) > 1 else b""
+                if index_mode not in (b"100644", b"100755") or (effective_mode != index_mode):
+                    print(
+                        f"Refusing commit: unrelated file-mode change: {name}",
+                        file=sys.stderr,
+                    )
+                    return EXIT_EXECUTION_ERROR
+                # Simulate reported fixes in a disposable file. If the result
+                # differs from the index, other unstaged edits would be
+                # swept into the commit. A restoration to HEAD is a safe no-op.
+                violations = [
+                    v
+                    for v in plan.violations
+                    if v.line is not None and Path(v.file_path).absolute() == leaf
+                ]
+                with tempfile.TemporaryDirectory(prefix="constitution-preflight-") as temp_dir:
+                    candidate = Path(temp_dir) / "candidate.md"
+                    shutil.copy2(leaf, candidate)
+                    simulation = ConstitutionFixer(Path(temp_dir))
+                    simulation._apply_content_fix(
+                        candidate, violations, dry_run=False, interactive=False
+                    )
+                    indexed_oid = subprocess.check_output(  # nosec B603 - fixed Git argv
+                        [git_executable, "rev-parse", f":{name}"], cwd=root
+                    ).strip()
+                    # Apply the same Git clean filters and attributes that
+                    # git add would use (e.g. CRLF checkout to LF index).
+                    candidate_oid = subprocess.run(  # nosec B603 - fixed Git argv
+                        [git_executable, "hash-object", f"--path={name}", "--stdin"],
+                        input=candidate.read_bytes(),
+                        cwd=root,
+                        capture_output=True,
+                        check=True,
+                    ).stdout.strip()
+                    if candidate_oid != indexed_oid:
+                        print(
+                            f"Refusing commit: unrelated unstaged edits in content source: {name}",
+                            file=sys.stderr,
+                        )
+                        return EXIT_EXECUTION_ERROR
+
+        # HEAD paths also protect user-staged deletions of old destinations.
+        occupied = head_paths | index_paths
+        occupied_sorted = sorted(occupied)
+        eligible = eligible_sources
+        destinations: set[str] = set()
+        active_directory_sources: set[Path] = set()
+        for original_name in eligible:
+            if not original_name:
+                continue
+            original = root / original_name
+            if not any(
+                original == src or original.is_relative_to(src) for src, _ in ordered_renames
+            ):
+                continue
+            # Previous unrelated deletions do not belong in this auto-commit.
+            if not original.exists() and not original.is_symlink():
+                continue
+            if original.is_symlink() or not original.is_file():
+                print(
+                    f"Refusing commit: tracked rename source is not a regular file: {original}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+
+            for src, _ in ordered_renames:
+                if src.is_dir() and original.is_relative_to(src):
+                    active_directory_sources.add(src)
+            final = original
+            for src, dst in ordered_renames:
+                if final == src or final.is_relative_to(src):
+                    final = dst / final.relative_to(src)
+            if final == original:
+                continue
+            try:
+                final_name = final.relative_to(root).as_posix()
+            except ValueError:
+                print(f"Refusing commit: path escapes Git repository: {final}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+            # A staged addition or old tracked destination must never be overwritten,
+            # even when absent from the working tree.
+            ancestors = {
+                "/".join(final_name.split("/")[:i]) for i in range(1, len(final_name.split("/")))
+            }
+            prefix = final_name + "/"
+            descendant_index = bisect_left(occupied_sorted, prefix)
+            descendant = descendant_index < len(occupied_sorted) and occupied_sorted[
+                descendant_index
+            ].startswith(prefix)
+            if final_name in occupied or ancestors & occupied or descendant:
+                print(
+                    f"Refusing commit: rename destination collides with Git path: {final_name}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            destinations.add(final_name)
+
+        # Internal .gitignore rules move with a directory and can change
+        # path eligibility after the rename. In auto-commit mode, fail closed.
+        for directory in active_directory_sources:
+            if any(p.is_file() for p in directory.rglob(".gitignore")):
+                print(
+                    f"Refusing commit: directory rename moves .gitignore: {directory}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+
+        if destinations:
+            stdin_paths = b"".join(
+                name.encode("utf-8", "surrogateescape") + b"\0" for name in sorted(destinations)
+            )
+            ignored = subprocess.run(  # nosec B603 - single batched read-only check
+                [git_executable, "check-ignore", "--no-index", "--stdin", "-z"],
+                input=stdin_paths,
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+            if ignored.returncode == 0:
+                values = ignored.stdout.decode("utf-8", "surrogateescape")
+                print(
+                    f"Refusing commit: ignored rename destinations: {values!r}",
+                    file=sys.stderr,
+                )
+                return EXIT_EXECUTION_ERROR
+            if ignored.returncode != 1:
+                print(f"Git ignore check failed: {ignored.stderr!r}", file=sys.stderr)
+                return EXIT_EXECUTION_ERROR
+    except (OSError, subprocess.CalledProcessError, ValueError, PathSecurityError) as exc:
+        print(f"Commit preflight failed: {exc}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
+    return EXIT_SUCCESS
 
 
 @handle_scan_errors
 def cmd_run_all(args: argparse.Namespace) -> int:
     """Execute complete workflow (scan, plan, fix, commit)."""
+    if args.format != "text":
+        print(
+            "Error: run-all --format is not supported for non-text output.",
+            file=sys.stderr,
+        )
+        return EXIT_VALIDATION_ERROR
+    # A human confirmation can leave a mutable window between preflight and
+    # staging. Keep interactive fixes separate from automated Git commits.
+    if args.commit and args.interactive:
+        print(
+            "Refusing --interactive --commit: run fix interactively, then review and commit manually.",
+            file=sys.stderr,
+        )
+        return EXIT_EXECUTION_ERROR
+    if Path(args.path).is_symlink():
+        print(f"Refusing symlink input: {args.path}", file=sys.stderr)
+        return EXIT_EXECUTION_ERROR
     path = validate_and_resolve_path(args.path)
     scanner = ConstitutionScanner()
     fixer = ConstitutionFixer(path)
@@ -366,6 +841,15 @@ def cmd_run_all(args: argparse.Namespace) -> int:
     # Step 2: Plan
     plan = _run_plan_step(fixer, result, reporter)
 
+    # Freeze tracked source eligibility before any rename/content mutation.
+    eligible_sources: set[str] = set()
+    if args.commit and not args.dry_run:
+        preflight_code = _preflight_commit_destinations(
+            path, plan, fixer, eligible_sources, interactive=args.interactive
+        )
+        if preflight_code != EXIT_SUCCESS:
+            return preflight_code
+
     # Step 3: Review (if interactive)
     if args.interactive:
         response = input("\nProceed with fixes? [y/N] ")
@@ -374,13 +858,13 @@ def cmd_run_all(args: argparse.Namespace) -> int:
             return EXIT_SUCCESS
 
     # Step 4: Fix
-    fix_exit_code = _run_fix_step(fixer, plan, args, reporter)
-    if fix_exit_code != EXIT_SUCCESS:
-        return fix_exit_code
+    fix_result = _run_fix_step(fixer, plan, args, reporter)
+    if not fix_result.success:
+        return EXIT_EXECUTION_ERROR
 
     # Step 5: Commit (if requested)
     if args.commit and not args.dry_run:
-        return _run_commit_step(path, plan)
+        return _run_commit_step(path, plan, fix_result, frozenset(eligible_sources))
 
     return EXIT_SUCCESS
 
@@ -537,6 +1021,16 @@ Exit Codes:
         help="Create git commit after fixes",
     )
     run_all_parser.set_defaults(func=cmd_run_all)
+
+    # Match the documented CLI: output flags also work after a subcommand.
+    for command_parser in (scan_parser, plan_parser, fix_parser, run_all_parser):
+        command_parser.add_argument(
+            "--format", choices=["text", "json", "table"], default=argparse.SUPPRESS
+        )
+        command_parser.add_argument("--no-color", action="store_true", default=argparse.SUPPRESS)
+        command_parser.add_argument(
+            "--verbose", "-v", action="store_true", default=argparse.SUPPRESS
+        )
 
     return parser
 

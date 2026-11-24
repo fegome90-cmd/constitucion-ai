@@ -45,7 +45,7 @@ Esta constitución resuelve eso con **leyes vinculantes**, no sugerencias.
 
 ## Instalación
 
-Este repositorio contiene exclusivamente documentación Markdown — no requiere instalación de dependencias.
+La constitución puede leerse sin instalar dependencias. La rama de integración también contiene un linter Python, config kits y diez starters ejecutables; esas herramientas sí requieren sus runtimes y dependencias.
 
 ```bash
 # Clonar el repositorio
@@ -53,7 +53,7 @@ git clone https://github.com/fegome90-cmd/constitucion-ai.git
 cd constitucion-ai
 ```
 
-Con eso ya tienes acceso a `constitution/AGENTIC-CONSTITUTION.md` y el resto de los documentos.
+Para ejecutar el linter y sus pruebas: `uv sync --frozen` y `uv run --frozen pytest tests/ -q`. Para listar los starters: `python3 scripts/scaffold.py --list`. Para **exportar un proyecto utilizable**: `python3 scripts/scaffold.py --template python --name mi-proyecto --output ..`. La auditoría `python3 tooling/audit.py --run-gates` crea proyectos temporales y ejecuta comandos del catálogo; úsala solo con checkouts confiables.
 
 ## Uso Rápido
 
@@ -77,14 +77,17 @@ Copiar `constitution/AGENTIC-CONSTITUTION.md` a tu proyecto.
 
 ```
 constitucion-ai/
-├── constitution/
-│   ├── AGENTIC-CONSTITUTION.md    # Constitución activa (v1.1)
-│   └── REVIEW-CHECKLIST.md        # Checklist de revisión
-├── docs/
-│   └── mandate-roles-and-jurisdiction.md
-├── archive/
-│   └── v0.7-AGENTIC-CONSTITUTION.md  # Versión archivada
-├── CLAUDE.md                      # Contexto para Claude Code
+├── constitution/                  # Normas constitucionales y checklist
+├── docs/                          # ADR, roles, planes y guías
+├── skills/agentic-constitution-anchor/  # Anclaje constitucional
+├── scripts/                       # Linter, aplicador y comprobación de versiones
+├── tooling/                       # Generación y auditoría de starters
+├── templates/                     # Config kits canónicos
+├── starters/                      # Diez proyectos ejecutables
+├── tests/                         # Regresiones y pruebas de integración
+├── evidencia/                      # Informes de ejecución
+├── catalog.json                   # Contrato de los diez entornos
+├── CLAUDE.md                      # Guía de agentes
 └── README.md                      # Este archivo
 ```
 
@@ -118,7 +121,12 @@ uv run constitution-linter fix .
 
 # Ejecutar todo (scan + plan + fix)
 uv run constitution-linter run-all .
+
+# Crear un commit de los archivos ya versionados que hayan sido corregidos
+uv run constitution-linter run-all . --commit
 ```
+
+`--commit` no incorpora archivos nuevos sin seguimiento, aunque `fix` los haya modificado o movido. Rechaza cambios previamente preparados en las rutas que intenta corregir, destinos en conflicto y renombres de directorios que contengan reglas `.gitignore` internas. Para esos casos, ejecuta `fix` sin `--commit`, revisa el resultado y confirma manualmente; el commit automático no debe absorber trabajo ajeno. La combinación `run-all --interactive --commit` está prohibida: realiza las correcciones interactivas y el commit en pasos separados.
 
 #### Códigos de Salida
 
