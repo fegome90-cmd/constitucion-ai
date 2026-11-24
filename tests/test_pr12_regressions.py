@@ -1885,3 +1885,50 @@ def test_custom_text_rule_is_not_exempted_as_builtin_reference(tmp_path: Path) -
     result = ConstitutionFixer(tmp_path).apply_plan(plan, create_backup=False)
     assert result.success
     assert target.read_text(encoding="utf-8") == "AI.md" + chr(10)
+
+
+def test_custom_yaml_rule_cannot_inherit_builtin_reference_exemption(tmp_path: Path) -> None:
+    from constitution_linter import load_patterns_from_yaml
+
+    config = tmp_path / "policy.yml"
+    config.write_text(
+        """patterns:
+  - rule_id: TXT-001
+    pattern: "[Cc]laude"
+    description: "Typo 'Claude' should be 'AI'"
+    suggestion: AI
+    severity: warning
+    scope: file_content
+    case_sensitive: true
+""",
+        encoding="utf-8",
+    )
+    target = tmp_path / "note.md"
+    original = "Claude.md" + chr(10) + "CLAUDE.md" + chr(10) + "Claude outside." + chr(10)
+    target.write_text(original, encoding="utf-8")
+    scanner = ConstitutionScanner(patterns=load_patterns_from_yaml(config))
+    result = scanner.scan_path(target)
+    assert [(v.line, v.match) for v in result.all_violations] == [(1, "Claude"), (3, "Claude")]
+    fixer = ConstitutionFixer(tmp_path)
+    assert fixer.apply_plan(fixer.create_plan(result), create_backup=False).success
+    assert target.read_text(encoding="utf-8") == original.replace("Claude", "AI")
+
+    # Even metadata identical to the built-in rule does not confer provenance.
+    config.write_text(
+        config.read_text(encoding="utf-8")
+        .replace("severity: warning", "severity: critical")
+        .replace("case_sensitive: true", "case_sensitive: false"),
+        encoding="utf-8",
+    )
+    target.write_text(original, encoding="utf-8")
+    scanner = ConstitutionScanner(patterns=load_patterns_from_yaml(config))
+    result = scanner.scan_path(target)
+    assert [(v.line, v.match) for v in result.all_violations] == [
+        (1, "Claude"),
+        (2, "CLAUDE"),
+        (3, "Claude"),
+    ]
+    assert fixer.apply_plan(fixer.create_plan(result), create_backup=False).success
+    assert target.read_text(encoding="utf-8") == original.replace("Claude", "AI").replace(
+        "CLAUDE", "AI"
+    )

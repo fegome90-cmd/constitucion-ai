@@ -62,6 +62,7 @@ class Pattern:
     description: str = ""
     scope: MatchScope = MatchScope.BOTH
     case_sensitive: bool = False  # F-005: Default to case-insensitive
+    builtin_canonical_reference: bool = False  # Provenance, not inferred from metadata
 
 
 @dataclass(frozen=True)

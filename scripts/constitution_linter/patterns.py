@@ -216,7 +216,7 @@ def _parse_scope(value: str) -> MatchScope:
     return mapping[value.lower()]
 
 
-def _parse_pattern(data: dict[str, Any]) -> Pattern:
+def _parse_pattern(data: dict[str, Any], *, builtin_canonical_reference: bool = False) -> Pattern:
     """
     Parse and validate a single pattern from config.
 
@@ -238,6 +238,7 @@ def _parse_pattern(data: dict[str, Any]) -> Pattern:
         description=data.get("description", ""),
         scope=_parse_scope(data.get("scope", "both")),
         case_sensitive=data.get("case_sensitive", False),
+        builtin_canonical_reference=builtin_canonical_reference,
     )
 
 
@@ -271,7 +272,10 @@ def load_patterns_from_yaml(config_path: Path) -> list[Pattern]:
 def get_default_patterns() -> list[Pattern]:
     """Get the default pattern set for model neutrality."""
     all_patterns = DIRECTORY_ALIAS_PATTERNS + FILE_ALIAS_PATTERNS + TEXT_REFERENCE_PATTERNS
-    return [_parse_pattern(p) for p in all_patterns]
+    return [
+        _parse_pattern(p, builtin_canonical_reference=p["rule_id"] == "TXT-001")
+        for p in all_patterns
+    ]
 
 
 def get_violation_type(pattern: Pattern) -> ViolationType:
@@ -407,13 +411,7 @@ def is_protected_content_match(pattern: Pattern, match: re.Match[str]) -> bool:
     Scanner and fixer use this same predicate, including stale-plan checks.
     The grammar is for text references, not arbitrary filesystem name syntax.
     """
-    if (
-        pattern.rule_id != "TXT-001"
-        or pattern.pattern != _CLAUDE_MODEL_PATTERN
-        or pattern.scope is not MatchScope.FILE_CONTENT
-        or pattern.suggestion != "AI"
-        or pattern.description != "Typo 'Claude' should be 'AI'"
-    ):
+    if not pattern.builtin_canonical_reference:
         return False
     line = match.string
     start = match.start()
