@@ -1717,3 +1717,76 @@ def test_autocommit_preserves_review_span_in_same_file(tmp_path: Path) -> None:
     )
     assert _git(tmp_path, "status", "--porcelain") == ""
     assert main(["scan", str(target), "--ci"]) == 1
+
+
+def test_fences_inside_list_preserve_code_and_fix_prose(tmp_path: Path) -> None:
+    for marker in ("~~~", chr(96) * 3):
+        target = tmp_path / "list.md"
+        original = (
+            "1.  Example"
+            + chr(10) * 2
+            + "    "
+            + marker
+            + "text"
+            + chr(10)
+            + "    Claude inside."
+            + chr(10)
+            + "    "
+            + marker
+            + chr(10) * 2
+            + "Claude outside."
+            + chr(10)
+        )
+        target.write_text(original)
+        assert main(["fix", str(target)]) == 0
+        assert target.read_text() == original.replace("Claude outside.", "AI outside.")
+
+
+def test_quoted_and_indented_markdown_code_preserved(tmp_path: Path) -> None:
+    target = tmp_path / "quote.md"
+    original = (
+        "> ~~~text"
+        + chr(10)
+        + "> Claude quoted."
+        + chr(10)
+        + "> ~~~"
+        + chr(10) * 2
+        + "    Claude indented."
+        + chr(10) * 2
+        + "Claude outside."
+        + chr(10)
+    )
+    target.write_text(original)
+    assert main(["fix", str(target)]) == 0
+    assert target.read_text() == original.replace("Claude outside.", "AI outside.")
+
+
+def test_canonical_filename_has_delimited_component_boundaries(tmp_path: Path) -> None:
+    target = tmp_path / "paths.md"
+    original = [
+        "docs/CLAUDE.md.",
+        "(CLAUDE.md)",
+        chr(96) + "CLAUDE.md" + chr(96),
+        "docs/MY+CLAUDE.md",
+        "docs/CLAUDE.md~",
+        "team@CLAUDE.md",
+        "docs/CLAUDE.md.bak",
+        "CLAUDE.md, GOVERNANCE.md",
+        "docs/CLAUDE.md#section",
+        "CLAUDE.md:14",
+    ]
+    target.write_text(chr(10).join(original) + chr(10))
+    assert main(["fix", str(target)]) == 0
+    expected = [
+        "docs/CLAUDE.md.",
+        "(CLAUDE.md)",
+        chr(96) + "CLAUDE.md" + chr(96),
+        "docs/MY+AI.md",
+        "docs/AI.md~",
+        "team@AI.md",
+        "docs/AI.md.bak",
+        "CLAUDE.md, GOVERNANCE.md",
+        "docs/CLAUDE.md#section",
+        "CLAUDE.md:14",
+    ]
+    assert target.read_text().splitlines() == expected

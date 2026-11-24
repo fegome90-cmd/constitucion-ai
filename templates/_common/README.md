@@ -15,7 +15,7 @@ La evidencia de adopción y mantenimiento está en `EVIDENCE.md`.
 
 ## Diferencias con la configuración de este repo
 
-Estos archivos se extrajeron de la configuración del repo, con tres divergencias deliberadas: no se copian la lista de palabras en español de `ignore-words-list`, el skip de `_ctx/` ni la excepción ortográfica de hashes SHA-512 de los lockfiles del repositorio. Cualquier otra regla sí se conserva.
+Estos archivos se extrajeron de la configuración del repo, con cuatro divergencias deliberadas: no se copian la lista de palabras en español de `ignore-words-list`, el skip de `_ctx/` ni la excepción ortográfica de hashes SHA-512 de los lockfiles del repositorio. El kit añade `node_modules` al skip de codespell. Las demás reglas se conservan.
 
 ## Uso
 

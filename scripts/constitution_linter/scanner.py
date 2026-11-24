@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from typing import TYPE_CHECKING, Final
+
+from markdown_it import MarkdownIt
 
 from .patterns import compile_pattern, get_default_patterns, get_violation_type
 from .types import (
@@ -234,9 +235,19 @@ class ConstitutionScanner:
 
             try:
                 content = file_path.read_text(encoding="utf-8")
+                lines = content.split("\n")
+                # CommonMark source maps preserve the original line coordinates.
+                # Parse once per document; never apply Markdown syntax to source code.
+                is_markup = file_path.suffix.lower() == ".md" or file_path.name.lower() in {
+                    ".airules",
+                    ".cursorrules",
+                }
+                code_block_ranges = self._find_code_block_ranges(content) if is_markup else []
                 for pattern in self.patterns:
                     if pattern.scope in (MatchScope.FILE_CONTENT, MatchScope.BOTH):
-                        violations.extend(self._match_content(file_path, content, pattern))
+                        violations.extend(
+                            self._match_content(file_path, lines, pattern, code_block_ranges)
+                        )
             except UnicodeDecodeError:
                 # SMELL-001: Log for debugging instead of silent pass
                 logger.debug("Skipping binary file: %s", file_path)
@@ -298,20 +309,16 @@ class ConstitutionScanner:
 
         return violations
 
-    def _match_content(self, file_path: Path, content: str, pattern: Pattern) -> list[Violation]:
-        """Match pattern against file content."""
+    def _match_content(
+        self,
+        file_path: Path,
+        lines: list[str],
+        pattern: Pattern,
+        code_block_ranges: list[tuple[int, int]],
+    ) -> list[Violation]:
+        """Match pattern against original text outside protected code blocks."""
         violations: list[Violation] = []
         compiled = self._compiled[pattern]
-        lines = content.split("\n")
-
-        # LOG-001: Use robust code block detection
-        # Fence syntax belongs to Markdown and Markdown-like rule documents,
-        # not arbitrary source code (e.g. Python's repeated bitwise NOT).
-        is_markup = file_path.suffix.lower() == ".md" or file_path.name.lower() in {
-            ".airules",
-            ".cursorrules",
-        }
-        code_block_ranges = self._find_code_block_ranges(lines) if is_markup else []
 
         for i, line in enumerate(lines, start=1):
             # LOG-001: Skip lines inside code blocks
@@ -336,39 +343,17 @@ class ConstitutionScanner:
 
         return violations
 
-    def _find_code_block_ranges(self, lines: list[str]) -> list[tuple[int, int]]:
-        """
-        LOG-001: Find all code block ranges in markdown.
+    @staticmethod
+    def _find_code_block_ranges(content: str) -> list[tuple[int, int]]:
+        """Return original zero-based, end-exclusive CommonMark code ranges.
 
-        Returns list of (start_line_idx, end_line_idx) tuples (0-indexed, exclusive).
-        Properly handles:
-        - Balanced code blocks
-        - Language specifiers (```python)
-        - Lines with ``` in the middle (not just at start)
+        The parser understands list and blockquote containers, fence lengths,
+        and indented code. Only line maps are consumed; no HTML is rendered.
         """
         ranges: list[tuple[int, int]] = []
-        fence: str | None = None
-        block_start = -1
-
-        for i, line in enumerate(lines):
-            match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
-            if match is None:
-                continue
-            marker, suffix = match.groups()
-            if fence is None:
-                if marker[0] == "`" and "`" in suffix:
-                    continue
-                fence = marker
-                block_start = i
-            elif marker[0] == fence[0] and len(marker) >= len(fence) and not suffix.strip():
-                ranges.append((block_start, i + 1))
-                fence = None
-                block_start = -1
-
-        # An unclosed fence protects the remainder of the file.
-        if fence is not None:
-            ranges.append((block_start, len(lines)))
-
+        for token in MarkdownIt("commonmark").parse(content):
+            if token.type in {"fence", "code_block"} and token.map is not None:
+                ranges.append((token.map[0], token.map[1]))
         return ranges
 
     def _is_line_in_code_block(

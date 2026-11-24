@@ -150,8 +150,15 @@ FILE_ALIAS_PATTERNS: Final[list[dict[str, Any]]] = [
 # Text references that violate neutrality
 TEXT_REFERENCE_PATTERNS: Final[list[dict[str, Any]]] = [
     {
-        # Only the canonical CLAUDE.md path component is exempt (Law VIII, Art. 14).
-        "pattern": r"(?:(?<=[\w.-])[Cc]laude|[Cc]laude(?!\.md(?![\w-]|\.[\w-])))",
+        # Text references, not arbitrary filesystem names: protect the exact
+        # canonical component at explicit path/prose boundaries, including
+        # link fragments and numeric line references. Adjacent filename
+        # characters (+, ~, @, suffixes, etc.) do not qualify.
+        "pattern": (
+            r"""(?:(?<=[^\s/\\'"`(\[<{])[Cc]laude|"""
+            r"""[Cc]laude(?!\.md(?=$|[\s/\\'"`)\]}>#]|:\d|"""
+            r"""[.,;:!?](?=$|[\s'"`)\]}>]))))"""
+        ),
         "suggestion": "AI",
         "severity": "critical",
         "rule_id": "TXT-001",
